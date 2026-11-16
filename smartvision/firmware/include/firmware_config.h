@@ -16,11 +16,11 @@
 // 1. Wi-Fi Configuration Template
 // ============================================================================
 #ifndef WIFI_SSID
-#define WIFI_SSID                   "SmartVision-AP"
+#define WIFI_SSID                   "X"
 #endif
 
 #ifndef WIFI_PASSWORD
-#define WIFI_PASSWORD               "smartvision123"
+#define WIFI_PASSWORD               "123456789"
 #endif
 
 // Wi-Fi Connection & Reconnect Exponential Backoff (ms)

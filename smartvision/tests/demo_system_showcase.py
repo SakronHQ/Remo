@@ -203,6 +203,18 @@ class DemonstrationRunner:
         async with websockets.connect(self.ws_device_url) as ws_device, \
                    websockets.connect(self.ws_client_url) as ws_client:
 
+            # Start simulated ESP32 periodic 10 Hz telemetry streaming task to pet gateway watchdog
+            async def device_heartbeat_loop():
+                try:
+                    while not ws_device.closed:
+                        telem = esp.generate_telemetry()
+                        await ws_device.send(json.dumps(telem))
+                        await asyncio.sleep(0.35)
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+            hb_task = asyncio.create_task(device_heartbeat_loop())
+
             # STAGE 2: Handshake
             t0 = time.perf_counter()
             init_msg = json.loads(await asyncio.wait_for(ws_client.recv(), timeout=2.0))
@@ -347,7 +359,12 @@ class DemonstrationRunner:
 
             # STAGE 7: Hardware Watchdog Sever & Safe-Stop
             t0 = time.perf_counter()
-            # Sever device connection while client is listening
+            # Stop telemetry heartbeat task and sever device connection while client is listening
+            hb_task.cancel()
+            try:
+                await hb_task
+            except (asyncio.CancelledError, Exception):
+                pass
             await ws_device.close()
 
             disc_alert = await recv_filtered_msg(

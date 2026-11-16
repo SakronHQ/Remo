@@ -83,6 +83,60 @@ SmartVision segregates hard real-time hardware actuation from computationally in
 - **Power Decoupling:** $1000\ \mu\text{F}$ low-ESR electrolytic capacitor + $0.1\ \mu\text{F}$ ceramic capacitor across PCA9685 $V+$ and GND.
 - **Hardware Mounting:** 2-DOF Pan-Tilt gimbal bracket with cable strain relief loop.
 
+### 2.3 Hardware Wiring & Pinout Connection Diagram
+
+#### Motor Channel Mapping (PCA9685):
+- **Big Motor (MG996R — Left/Right Pan):** Connect to **Channel 0** on PCA9685 (PWM Signal = Yellow, V+ = Red, GND = Brown/Black).
+- **Small Motor (MG90S — Up/Down Tilt):** Connect to **Channel 1** on PCA9685 (PWM Signal = Yellow, V+ = Red, GND = Brown/Black).
+
+| Component | Component Pin | ESP32-S3 Pin | Function / Connection Notes |
+|---|---|---|---|
+| **PCA9685 PWM Driver** | **VCC** | **3V3** | Logic power for PCA9685 chip (3.3V) |
+| | **GND** | **GND** | Logic ground (tied to common ground) |
+| | **SDA** | **GPIO 8** | I2C Data line |
+| | **SCL** | **GPIO 9** | I2C Clock line |
+| | **OE** | **GPIO 12** (or GND) | Output Enable (Active LOW) |
+| | **Green V+ Terminal** | **External 5V (+)** | High-current external supply for servos (3A–5A) |
+| | **Green GND Terminal**| **External 5V (-)** | Tied to ESP32 GND (Common Ground) |
+| **Big Servo (Pan / Left-Right)** | **3-Pin Cable** | **PCA9685 Ch 0** | Base rotation ($15^\circ - 165^\circ$, Center $90^\circ$) |
+| **Small Servo (Tilt / Up-Down)**| **3-Pin Cable** | **PCA9685 Ch 1** | Elevation tilt ($60^\circ - 135^\circ$, Center $90^\circ$) |
+| **HC-SR04 Ultrasonic Sonar** | **VCC** | **5V** | Sensor power |
+| | **GND** | **GND** | Common ground |
+| | **TRIG** | **GPIO 4** | 10 µs trigger pulse (3.3V) |
+| | **ECHO** | **GPIO 5** | Echo return (via 1kΩ / 2kΩ divider to 3.3V) |
+| **HC-SR501 PIR Motion Sensor** | **VCC** | **5V** | Sensor power |
+| | **GND** | **GND** | Common ground |
+| | **OUT** | **GPIO 6** | Digital motion detect output (3.3V logic) |
+| **Active 5V Buzzer** | **(+) VCC** | **5V** | Positive rail |
+| | **(-) GND** | **GPIO 7** (via 2N2222) | Low-side switched (Base via 1kΩ to GPIO 7) |
+
+```
+  PCA9685 SERVO DRIVER:
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │  Channel 0 ──► [ BIG MOTOR: MG996R (Pan / Left-Right) ]                │
+  │  Channel 1 ──► [ SMALL MOTOR: MG90S (Tilt / Up-Down)  ]                │
+  │                                                                        │
+  │  Green Screw Terminal:                                                 │
+  │    V+   ◄── External 5.0V Regulated Supply (+) [3A - 5A]               │
+  │    GND  ◄── External 5.0V Supply (-)  <══ Tied to ESP32 GND ══>        │
+  └────────────────────────────────────────────────────────────────────────┘
+
+  ESP32-S3 TO PCA9685 & SENSORS:
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │  PCA9685 SDA  ──► ESP32 GPIO 8                                         │
+  │  PCA9685 SCL  ──► ESP32 GPIO 9                                         │
+  │  PCA9685 VCC  ──► ESP32 3V3                                            │
+  │  PCA9685 GND  ──► ESP32 GND (Common Ground)                            │
+  │  PCA9685 OE   ──► ESP32 GPIO 12 (or GND)                               │
+  │                                                                        │
+  │  HC-SR04 TRIG ──► ESP32 GPIO 4                                         │
+  │  HC-SR04 ECHO ──► [1kΩ] ──┬──► ESP32 GPIO 5 (Safe 3.3V)                │
+  │                           └──► [2kΩ] ──► GND                           │
+  │  HC-SR501 OUT ──► ESP32 GPIO 6                                         │
+  │  BUZZER (-)   ──► 2N2222 Base via 1kΩ ◄── ESP32 GPIO 7                 │
+  └────────────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## 3. Software Stack & Technology Choices

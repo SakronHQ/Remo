@@ -39,7 +39,92 @@ SmartVision is a high-performance, fail-safe, 2-Degree-of-Freedom (2-DOF) pan-ti
 
 ---
 
-## 2. One-Click Quickstart
+## 2. Hardware Wiring & Pinout Connection Diagram
+
+### 2.1 Motor Channel Mapping (PCA9685)
+- **Big Motor (MG996R — Left/Right Pan):** Connect to **Channel 0** on PCA9685 (PWM Signal = Yellow/Orange, V+ = Red, GND = Brown/Black).
+- **Small Motor (MG90S — Up/Down Tilt):** Connect to **Channel 1** on PCA9685 (PWM Signal = Yellow/Orange, V+ = Red, GND = Brown/Black).
+
+> [!WARNING]
+> **Power Rule:** Connect your external 5V (3A–5A) power supply to the **green terminal block** of the PCA9685. Connect the external power supply GND together with the ESP32 GND (**Common Ground**). Never power servos directly from the ESP32 3.3V or 5V pin!
+
+### 2.2 Complete ESP32-S3 Component Pinout Table
+| Component | Component Pin | ESP32-S3 Pin | Function / Connection Notes |
+|---|---|---|---|
+| **PCA9685 PWM Driver** | **VCC** | **3V3** | Logic power for PCA9685 chip (3.3V) |
+| | **GND** | **GND** | Logic ground (tied to common ground) |
+| | **SDA** | **GPIO 8** | I2C Data line |
+| | **SCL** | **GPIO 9** | I2C Clock line |
+| | **OE** | **GPIO 12** (or GND) | Output Enable (Active LOW) |
+| | **Green V+ Terminal** | **External 5V (+)** | High-current power for servos |
+| | **Green GND Terminal**| **External 5V (-)** | Tied to ESP32 GND (Common Ground) |
+| **Big Servo (Pan / Left-Right)** | **3-Pin Cable** | **PCA9685 Ch 0** | Base rotation ($15^\circ - 165^\circ$, Center $90^\circ$) |
+| **Small Servo (Tilt / Up-Down)**| **3-Pin Cable** | **PCA9685 Ch 1** | Elevation tilt ($60^\circ - 135^\circ$, Center $90^\circ$) |
+| **HC-SR04 Ultrasonic Sonar** | **VCC** | **5V** | Sensor power |
+| | **GND** | **GND** | Common ground |
+| | **TRIG** | **GPIO 4** | 10 µs trigger pulse (3.3V) |
+| | **ECHO** | **GPIO 5** | Echo return (via 1kΩ / 2kΩ divider to 3.3V) |
+| **HC-SR501 PIR Motion Sensor** | **VCC** | **5V** | Sensor power |
+| | **GND** | **GND** | Common ground |
+| | **OUT** | **GPIO 6** | Digital motion detect output (3.3V logic) |
+| **Active 5V Buzzer** | **(+) VCC** | **5V** | Positive rail |
+| | **(-) GND** | **GPIO 7** (via 2N2222) | Low-side switched (Base via 1kΩ to GPIO 7) |
+
+### 2.3 Visual ASCII Wiring Schematic
+
+```
+                                  ┌───────────────────────────┐
+                                  │         ESP32-S3          │
+                                  │                           │
+                                  │  3V3 ──────────────────┐  │
+                                  │  GND ────────────────┐ │  │
+                                  │  GPIO 8 (SDA) ─────┐ │ │  │
+                                  │  GPIO 9 (SCL) ───┐ │ │ │  │
+                                  │  GPIO 12 (OE) ─┐ │ │ │ │  │
+                                  │  GPIO 4 (TRIG) │ │ │ │ │  │
+                                  │  GPIO 5 (ECHO) │ │ │ │ │  │
+                                  │  GPIO 6 (PIR)  │ │ │ │ │  │
+                                  │  GPIO 7 (BUZZ) │ │ │ │ │  │
+                                  └────────────────┼─┼─┼─┼─┼──┘
+                                                   │ │ │ │ │
+                                                   │ │ │ │ └──► PCA9685 VCC (3.3V Logic)
+                                                   │ │ │ └────► PCA9685 GND (Common Ground)
+                                                   │ │ └──────► PCA9685 SDA (I2C Data)
+                                                   │ └────────► PCA9685 SCL (I2C Clock)
+                                                   └──────────► PCA9685 OE (or connect to GND)
+
+  PCA9685 SERVO DRIVER:
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │  Channel 0 ──► [ BIG MOTOR: MG996R (Pan / Left-Right) ]                │
+  │  Channel 1 ──► [ SMALL MOTOR: MG90S (Tilt / Up-Down)  ]                │
+  │                                                                        │
+  │  Green Screw Terminal:                                                 │
+  │    V+   ◄── External 5.0V Regulated Supply (+) [3A - 5A]               │
+  │    GND  ◄── External 5.0V Supply (-)  <══ Tied to ESP32 GND ══>        │
+  └────────────────────────────────────────────────────────────────────────┘
+
+  SENSORS WIRING:
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │  HC-SR04 Sonar:                                                        │
+  │    VCC  ──► 5V                                                         │
+  │    GND  ──► GND                                                        │
+  │    TRIG ──► ESP32 GPIO 4                                               │
+  │    ECHO ──► [1kΩ] ──┬──► ESP32 GPIO 5 (Safe 3.3V)                      │
+  │                     └──► [2kΩ] ──► GND                                 │
+  │                                                                        │
+  │  HC-SR501 PIR Motion:                                                  │
+  │    VCC  ──► 5V  |  GND ──► GND  |  OUT ──► ESP32 GPIO 6               │
+  │                                                                        │
+  │  Active 5V Buzzer:                                                     │
+  │    (+) ──► 5V   |  (-) ──► 2N2222 Collector                            │
+  │    2N2222 Base ◄── [1kΩ Resistor] ◄── ESP32 GPIO 7                     │
+  │    2N2222 Emitter ──► GND                                              │
+  └────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. One-Click Quickstart
 
 ### 2.1 Zero-Hardware Workstation Mode (No Physical Webcams or Servos Required)
 Simulate all tiers on any PC workstation using procedural synthetic video and virtual ESP32 hardware:
