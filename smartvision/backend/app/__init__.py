@@ -1,0 +1,3 @@
+"""
+SmartVision Backend Application Package
+"""

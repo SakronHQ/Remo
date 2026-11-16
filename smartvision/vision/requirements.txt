@@ -1,0 +1,8 @@
+# SmartVision Vision Subsystem Requirements
+opencv-python>=4.8.0
+numpy>=1.24.0
+fastapi>=0.100.0
+
+# Optional Deep Learning Acceleration (CPU / CUDA)
+# ultralytics>=8.0.0
+# torch>=2.0.0

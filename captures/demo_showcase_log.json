@@ -1,0 +1,70 @@
+{
+  "timestamp": 1794825966.0360904,
+  "all_passed": true,
+  "stages": [
+    {
+      "stage": 1,
+      "name": "REST Health & Discovery Verification",
+      "details": "Health 200 OK | Uptime 0.0s | FPS: 0.0",
+      "duration_ms": 2.59,
+      "passed": true,
+      "timestamp": 1794825965.8266978
+    },
+    {
+      "stage": 2,
+      "name": "Full-Duplex Dual WebSocket Handshake",
+      "details": "Client & Device connected simultaneously. Roundtrip ping/pong confirmed.",
+      "duration_ms": 0.63,
+      "passed": true,
+      "timestamp": 1794825965.8408868
+    },
+    {
+      "stage": 3,
+      "name": "Closed-Loop Autonomous Optical Tracking",
+      "details": "Target acquired (ID 1). PID dispatched cmd.servo.move (Pan: 92.9\u00b0, Tilt: 88.0\u00b0).",
+      "duration_ms": 111.14,
+      "passed": true,
+      "timestamp": 1794825965.9513643
+    },
+    {
+      "stage": 4,
+      "name": "Manual D-Pad Jog & Speed Scaling",
+      "details": "Arbitrated manual jog received: Pan 125.0\u00b0, Tilt 75.0\u00b0 at speed factor 0.6.",
+      "duration_ms": 0.71,
+      "passed": true,
+      "timestamp": 1794825966.0288417
+    },
+    {
+      "stage": 5,
+      "name": "Ultrasonic Hazard (<20cm) Interlock",
+      "details": "Proximity obstruction alert generated (Obstacle detected 14.5 cm from camera (Threshold: 20.0 cm). Servo motion inhibited.).",
+      "duration_ms": 0.69,
+      "passed": true,
+      "timestamp": 1794825966.029846
+    },
+    {
+      "stage": 6,
+      "name": "HC-SR501 PIR Intrusion Motion Alert",
+      "details": "Motion alarm event broadcast to operators upon pyroelectric rising edge.",
+      "duration_ms": 0.35,
+      "passed": true,
+      "timestamp": 1794825966.029846
+    },
+    {
+      "stage": 7,
+      "name": "Communication Loss & Safe-Stop Failsafe",
+      "details": "Gateway asserted FAILSAFE_ACTIVE upon WebSocket disconnect. Servos locked.",
+      "duration_ms": 0.63,
+      "passed": true,
+      "timestamp": 1794825966.0308514
+    },
+    {
+      "stage": 8,
+      "name": "Link Recovery & Neutral Re-Centering",
+      "details": "Connection restored. Calibration center command delivered (Pan 90\u00b0, Tilt 90\u00b0).",
+      "duration_ms": 3.35,
+      "passed": true,
+      "timestamp": 1794825966.0350652
+    }
+  ]
+}
