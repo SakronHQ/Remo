@@ -18,7 +18,7 @@ Runs preflight environment checks and exits cleanly.
 .EXAMPLE
 .\start_system.ps1 -MockHardware -Synthetic
 #>
-[CmdletBinding()]
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [switch]$MockHardware,
     [switch]$Synthetic,
@@ -27,7 +27,7 @@ param(
     [string]$HostAddress = "0.0.0.0",
     [int]$Port = 8000,
     [int]$FrontendPort = 3000,
-    [Alias("Detector")][string]$DetectorMode = "auto",
+    [Alias("DetectorMode")][string]$Detector = "face",
     [int]$CameraIndex = -1,
     [switch]$DebugMode,
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -49,7 +49,9 @@ if ($NoFrontend) { $ArgsList += "--no-frontend" }
 if ($HostAddress -ne "0.0.0.0") { $ArgsList += @("--host", $HostAddress) }
 if ($Port -ne 8000) { $ArgsList += @("--port", $Port) }
 if ($FrontendPort -ne 3000) { $ArgsList += @("--frontend-port", $FrontendPort) }
-if ($DetectorMode -ne "auto") { $ArgsList += @("--detector", $DetectorMode) }
+if ($Detector -and -not ($ExtraArgs -and ($ExtraArgs -contains "--detector" -or $ExtraArgs -contains "-Detector" -or $ExtraArgs -contains "--detector-mode"))) { 
+    $ArgsList += @("--detector", $Detector) 
+}
 if ($CameraIndex -ge 0) { $ArgsList += @("--camera-index", $CameraIndex) }
 if ($DebugMode) { $ArgsList += "--debug" }
 if ($ExtraArgs) { $ArgsList += $ExtraArgs }
