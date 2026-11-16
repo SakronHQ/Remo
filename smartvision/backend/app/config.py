@@ -59,7 +59,12 @@ class Settings(BaseModel):
     FORCE_SYNTHETIC: bool = Field(
         default_factory=lambda: os.getenv("SMARTVISION_FORCE_SYNTHETIC", "false").lower() == "true"
     )
-    DETECTOR_MODE: str = Field(default_factory=lambda: os.getenv("SMARTVISION_DETECTOR_MODE", "face"))
+    DETECTOR_MODE: str = Field(
+        default_factory=lambda: os.getenv(
+            "SMARTVISION_DETECTOR_MODE",
+            "mock" if os.getenv("SMARTVISION_FORCE_SYNTHETIC", "false").lower() == "true" else "face",
+        )
+    )
     ENABLE_HUD: bool = True
     MJPEG_QUALITY: int = 80
 

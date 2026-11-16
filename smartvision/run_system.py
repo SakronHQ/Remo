@@ -85,7 +85,7 @@ class SystemSupervisor:
         enable_frontend: bool = True,
         enable_mock_esp32: bool = False,
         force_synthetic: bool = False,
-        detector_mode: str = "face",
+        detector_mode: Optional[str] = None,
         debug: bool = False,
         camera_index: Optional[int] = None,
     ):
@@ -95,7 +95,7 @@ class SystemSupervisor:
         self.enable_frontend = enable_frontend
         self.enable_mock_esp32 = enable_mock_esp32
         self.force_synthetic = force_synthetic
-        self.detector_mode = detector_mode
+        self.detector_mode = detector_mode or ("mock" if force_synthetic else "face")
         self.debug = debug
         self.camera_index = camera_index
 
@@ -374,11 +374,15 @@ def main():
     parser.add_argument("--no-frontend", action="store_true", help="Launch backend gateway only without Next.js UI")
     parser.add_argument("--mock-esp32", action="store_true", help="Launch virtual ESP32 hardware client")
     parser.add_argument("--synthetic", action="store_true", help="Force synthetic test pattern video stream")
-    parser.add_argument("--detector", "--detector-mode", dest="detector", type=str, default="face", choices=["auto", "face", "mock", "yolo"], help="Person/Face detector mode (default: face)")
+    parser.add_argument("--detector", "--detector-mode", dest="detector", type=str, default=None, choices=["auto", "face", "mock", "yolo"], help="Person/Face detector mode (default: face for camera, mock for synthetic)")
     parser.add_argument("--camera-index", type=int, default=None, help="Camera device index (default: 0 for physical webcam, 1 for OBS Virtual Camera)")
     parser.add_argument("--debug", action="store_true", help="Enable verbose debug logging")
     parser.add_argument("--check-only", action="store_true", help="Execute preflight checks and exit")
     args = parser.parse_args()
+
+    detector_mode = args.detector
+    if not detector_mode:
+        detector_mode = "mock" if args.synthetic else "face"
 
     supervisor = SystemSupervisor(
         host=args.host,
@@ -387,7 +391,7 @@ def main():
         enable_frontend=not args.no_frontend,
         enable_mock_esp32=args.mock_esp32,
         force_synthetic=args.synthetic,
-        detector_mode=args.detector,
+        detector_mode=detector_mode,
         debug=args.debug,
         camera_index=args.camera_index,
     )

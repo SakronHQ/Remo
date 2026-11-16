@@ -97,6 +97,33 @@ class TestConfigAndSchemas(unittest.TestCase):
         self.assertEqual(s.clamp_tilt(150.0), 135.0)
         self.assertEqual(s.clamp_tilt(30.0), 60.0)
 
+    def test_detector_mode_settings_resolution(self):
+        """Verifies dynamic detector resolution: face for real camera, mock for synthetic."""
+        old_synth = os.environ.get("SMARTVISION_FORCE_SYNTHETIC")
+        old_mode = os.environ.get("SMARTVISION_DETECTOR_MODE")
+        try:
+            os.environ.pop("SMARTVISION_FORCE_SYNTHETIC", None)
+            os.environ.pop("SMARTVISION_DETECTOR_MODE", None)
+            s_default = Settings()
+            self.assertEqual(s_default.DETECTOR_MODE, "face")
+
+            os.environ["SMARTVISION_FORCE_SYNTHETIC"] = "true"
+            s_synth = Settings()
+            self.assertEqual(s_synth.DETECTOR_MODE, "mock")
+
+            os.environ["SMARTVISION_DETECTOR_MODE"] = "yolo"
+            s_override = Settings()
+            self.assertEqual(s_override.DETECTOR_MODE, "yolo")
+        finally:
+            if old_synth is not None:
+                os.environ["SMARTVISION_FORCE_SYNTHETIC"] = old_synth
+            else:
+                os.environ.pop("SMARTVISION_FORCE_SYNTHETIC", None)
+            if old_mode is not None:
+                os.environ["SMARTVISION_DETECTOR_MODE"] = old_mode
+            else:
+                os.environ.pop("SMARTVISION_DETECTOR_MODE", None)
+
     def test_smartvision_envelope_validation(self):
         # Valid envelope
         raw = {

@@ -1,70 +1,70 @@
 {
-  "timestamp": 1794835676.407147,
+  "timestamp": 1794843294.2183595,
   "all_passed": true,
   "stages": [
     {
       "stage": 1,
       "name": "REST Health & Discovery Verification",
       "details": "Health 200 OK | Uptime 0.0s | FPS: 0.0",
-      "duration_ms": 2.67,
+      "duration_ms": 2.96,
       "passed": true,
-      "timestamp": 1794835676.2018263
+      "timestamp": 1794843294.022927
     },
     {
       "stage": 2,
       "name": "Full-Duplex Dual WebSocket Handshake",
       "details": "Client & Device connected simultaneously. Roundtrip ping/pong confirmed.",
-      "duration_ms": 0.71,
+      "duration_ms": 0.44,
       "passed": true,
-      "timestamp": 1794835676.2168298
+      "timestamp": 1794843294.0343053
     },
     {
       "stage": 3,
       "name": "Closed-Loop Autonomous Optical Tracking",
       "details": "Target acquired (ID 1). PID dispatched cmd.servo.move (Pan: 93.0\u00b0, Tilt: 88.0\u00b0).",
-      "duration_ms": 126.14,
+      "duration_ms": 109.56,
       "passed": true,
-      "timestamp": 1794835676.3422866
+      "timestamp": 1794843294.1438053
     },
     {
       "stage": 4,
       "name": "Manual D-Pad Jog & Speed Scaling",
       "details": "Arbitrated manual jog received: Pan 125.0\u00b0, Tilt 75.0\u00b0 at speed factor 0.6.",
-      "duration_ms": 0.39,
+      "duration_ms": 1.57,
       "passed": true,
-      "timestamp": 1794835676.4007955
+      "timestamp": 1794843294.210472
     },
     {
       "stage": 5,
       "name": "Ultrasonic Hazard (<20cm) Interlock",
       "details": "Proximity obstruction alert generated (Obstacle detected 14.5 cm from camera (Threshold: 20.0 cm). Servo motion inhibited.).",
-      "duration_ms": 0.47,
+      "duration_ms": 1.03,
       "passed": true,
-      "timestamp": 1794835676.4007955
+      "timestamp": 1794843294.2119987
     },
     {
       "stage": 6,
       "name": "HC-SR501 PIR Intrusion Motion Alert",
       "details": "Motion alarm event broadcast to operators upon pyroelectric rising edge.",
-      "duration_ms": 0.37,
+      "duration_ms": 0.52,
       "passed": true,
-      "timestamp": 1794835676.401803
+      "timestamp": 1794843294.2119987
     },
     {
       "stage": 7,
       "name": "Communication Loss & Safe-Stop Failsafe",
       "details": "Gateway asserted FAILSAFE_ACTIVE upon WebSocket disconnect. Servos locked.",
-      "duration_ms": 0.55,
+      "duration_ms": 0.84,
       "passed": true,
-      "timestamp": 1794835676.4022243
+      "timestamp": 1794843294.2129989
     },
     {
       "stage": 8,
       "name": "Link Recovery & Neutral Re-Centering",
       "details": "Connection restored. Calibration center command delivered (Pan 90\u00b0, Tilt 90\u00b0).",
-      "duration_ms": 3.63,
+      "duration_ms": 3.75,
       "passed": true,
-      "timestamp": 1794835676.4063232
+      "timestamp": 1794843294.217846
     }
   ]
 }

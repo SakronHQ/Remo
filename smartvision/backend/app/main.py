@@ -71,7 +71,10 @@ async def app_lifespan(app: FastAPI):
             camera_service.start()
 
     if not hasattr(app.state, "tracking_pipeline") or app.state.tracking_pipeline is None:
-        detector = create_detector(mode=settings.DETECTOR_MODE)
+        det_mode = settings.DETECTOR_MODE
+        if settings.FORCE_SYNTHETIC and det_mode in ("face", "auto"):
+            det_mode = "mock"
+        detector = create_detector(mode=det_mode)
         pipeline = TrackingPipeline(
             detector=detector,
             frame_width=settings.CAMERA_WIDTH,
