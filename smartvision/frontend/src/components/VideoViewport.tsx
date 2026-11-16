@@ -10,6 +10,7 @@ import {
   Target,
   Video,
   VideoOff,
+  ZoomIn,
 } from "lucide-react";
 import {
   ActiveTarget,
@@ -44,12 +45,14 @@ export function VideoViewport({
 }: VideoViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const zoomCanvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   const [streamError, setStreamError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showOverlays, setShowOverlays] = useState(true);
   const [showDeadband, setShowDeadband] = useState(true);
+  const [showTargetZoom, setShowTargetZoom] = useState(true);
   const [clickRipple, setClickRipple] = useState<{ x: number; y: number; time: number } | null>(null);
 
   const frameWidth = frameTarget?.frame_dimensions?.width || 640;
@@ -224,6 +227,72 @@ export function VideoViewport({
     }
   }, [frameTarget, frameWidth, frameHeight, showOverlays, showDeadband, isEstopActive, clickRipple]);
 
+  // Render Target Face Zoom Magnifier PiP
+  useEffect(() => {
+    if (!showTargetZoom) return;
+    const zCanvas = zoomCanvasRef.current;
+    const img = imgRef.current;
+    if (!zCanvas || !img) return;
+
+    const zctx = zCanvas.getContext("2d");
+    if (!zctx) return;
+
+    const activeTarget = frameTarget?.active_target;
+    if (activeTarget && activeTarget.bbox && img.complete && img.naturalWidth > 0) {
+      const [x1, y1, x2, y2] = activeTarget.bbox;
+      const naturalW = img.naturalWidth;
+      const naturalH = img.naturalHeight;
+      const scaleX = naturalW / frameWidth;
+      const scaleY = naturalH / frameHeight;
+
+      const fx1 = x1 * scaleX;
+      const fy1 = y1 * scaleY;
+      const fx2 = x2 * scaleX;
+      const fy2 = y2 * scaleY;
+      const fw = fx2 - fx1;
+      const fh = fy2 - fy1;
+
+      // 30% margin around face to include hair, ears and chin
+      const padX = fw * 0.30;
+      const padY = fh * 0.30;
+      const cropX = Math.max(0, fx1 - padX);
+      const cropY = Math.max(0, fy1 - padY);
+      const cropW = Math.min(naturalW - cropX, fw + padX * 2);
+      const cropH = Math.min(naturalH - cropY, fh + padY * 2);
+
+      if (cropW > 10 && cropH > 10) {
+        zctx.clearRect(0, 0, zCanvas.width, zCanvas.height);
+        zctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, zCanvas.width, zCanvas.height);
+
+        // Tactical Corner Brackets (Vivid Red #ef4444)
+        zctx.strokeStyle = "#ef4444";
+        zctx.lineWidth = 2;
+        const zw = zCanvas.width;
+        const zh = zCanvas.height;
+        const cornerLen = 14;
+
+        // Top-left
+        zctx.beginPath();
+        zctx.moveTo(4, 4 + cornerLen); zctx.lineTo(4, 4); zctx.lineTo(4 + cornerLen, 4);
+        // Top-right
+        zctx.moveTo(zw - 4 - cornerLen, 4); zctx.lineTo(zw - 4, 4); zctx.lineTo(zw - 4, 4 + cornerLen);
+        // Bottom-left
+        zctx.moveTo(4, zh - 4 - cornerLen); zctx.lineTo(4, zh - 4); zctx.lineTo(4 + cornerLen, zh - 4);
+        // Bottom-right
+        zctx.moveTo(zw - 4 - cornerLen, zh - 4); zctx.lineTo(zw - 4, zh - 4); zctx.lineTo(zw - 4, zh - 4 - cornerLen);
+        zctx.stroke();
+
+        // Subtle center reticle dot
+        zctx.fillStyle = "rgba(239, 68, 68, 0.9)";
+        zctx.beginPath();
+        zctx.arc(zw / 2, zh / 2, 3, 0, 2 * Math.PI);
+        zctx.fill();
+      }
+    } else {
+      zctx.clearRect(0, 0, zCanvas.width, zCanvas.height);
+    }
+  }, [frameTarget, frameWidth, frameHeight, showTargetZoom]);
+
   // Handle Click-to-Track interaction on the video canvas
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -383,6 +452,19 @@ export function VideoViewport({
           </button>
 
           <button
+            onClick={() => setShowTargetZoom(!showTargetZoom)}
+            title="Toggle Target Face Zoom PiP"
+            className={`p-1.5 rounded transition-colors text-xs font-mono flex items-center space-x-1 ${
+              showTargetZoom
+                ? "bg-red-950/80 text-red-400 border border-red-500/50"
+                : "bg-slate-900/80 text-slate-400 border border-slate-700/50"
+            }`}
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">ZOOM</span>
+          </button>
+
+          <button
             onClick={() => setShowDeadband(!showDeadband)}
             title="Toggle Deadband Tolerance Ring"
             className={`p-1.5 rounded transition-colors text-xs font-mono flex items-center space-x-1 ${
@@ -449,6 +531,45 @@ export function VideoViewport({
           onClick={handleCanvasClick}
           className="absolute inset-0 w-full h-full cursor-crosshair z-10"
         />
+
+        {/* Target Face Magnifier PiP Window */}
+        {showTargetZoom && (
+          <div className="absolute top-12 right-3 z-20 flex flex-col bg-slate-950/90 backdrop-blur-md border border-red-500/60 rounded-xl p-2 shadow-[0_0_20px_rgba(239,68,68,0.25)] transition-all pointer-events-auto">
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-red-500/30">
+              <div className="flex items-center space-x-1.5">
+                <span className={`w-2 h-2 rounded-full ${frameTarget?.target_locked ? "bg-red-500 animate-ping" : "bg-slate-600"}`} />
+                <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-wider">
+                  {frameTarget?.target_locked ? `TARGET #${frameTarget.active_target?.track_id}` : "FACE SPOTTER"}
+                </span>
+              </div>
+              <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-500/40">
+                {frameTarget?.target_locked ? `${Math.round((frameTarget.active_target?.confidence || 0.9) * 100)}%` : "STANDBY"}
+              </span>
+            </div>
+
+            <div className="relative w-36 h-36 rounded-lg overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center">
+              <canvas
+                ref={zoomCanvasRef}
+                width={144}
+                height={144}
+                className={`w-full h-full object-cover ${!frameTarget?.target_locked ? "hidden" : "block"}`}
+              />
+              {!frameTarget?.target_locked && (
+                <div className="text-center p-3 text-slate-400 text-[10px] font-mono leading-relaxed">
+                  <Target className="w-6 h-6 mx-auto mb-1.5 text-slate-500" />
+                  Click any face to lock & zoom
+                </div>
+              )}
+            </div>
+
+            {frameTarget?.target_locked && (
+              <div className="mt-1.5 flex items-center justify-between text-[9px] font-mono text-slate-400">
+                <span className="text-emerald-400 font-semibold">● DB PERSISTED</span>
+                <span className="text-red-400 font-bold">2.5x ZOOM</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* E-Stop Visual Banner Overlay if Active */}
         {isEstopActive && (
