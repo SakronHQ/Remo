@@ -28,6 +28,7 @@ param(
     [int]$Port = 8000,
     [int]$FrontendPort = 3000,
     [Alias("Detector")][string]$DetectorMode = "auto",
+    [int]$CameraIndex = -1,
     [switch]$DebugMode,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$ExtraArgs
@@ -49,6 +50,7 @@ if ($HostAddress -ne "0.0.0.0") { $ArgsList += @("--host", $HostAddress) }
 if ($Port -ne 8000) { $ArgsList += @("--port", $Port) }
 if ($FrontendPort -ne 3000) { $ArgsList += @("--frontend-port", $FrontendPort) }
 if ($DetectorMode -ne "auto") { $ArgsList += @("--detector", $DetectorMode) }
+if ($CameraIndex -ge 0) { $ArgsList += @("--camera-index", $CameraIndex) }
 if ($DebugMode) { $ArgsList += "--debug" }
 if ($ExtraArgs) { $ArgsList += $ExtraArgs }
 

@@ -87,6 +87,7 @@ class SystemSupervisor:
         force_synthetic: bool = False,
         detector_mode: str = "auto",
         debug: bool = False,
+        camera_index: Optional[int] = None,
     ):
         self.host = host
         self.port = port
@@ -96,6 +97,7 @@ class SystemSupervisor:
         self.force_synthetic = force_synthetic
         self.detector_mode = detector_mode
         self.debug = debug
+        self.camera_index = camera_index
 
         self.processes: Dict[str, subprocess.Popen] = {}
         self.threads: List[threading.Thread] = []
@@ -140,6 +142,8 @@ class SystemSupervisor:
         env["SMARTVISION_DEBUG"] = "true" if self.debug else "false"
         env["SMARTVISION_FORCE_SYNTHETIC"] = "true" if self.force_synthetic else "false"
         env["SMARTVISION_DETECTOR_MODE"] = self.detector_mode
+        if self.camera_index is not None:
+            env["SMARTVISION_CAMERA_INDEX"] = str(self.camera_index)
         env["PYTHONUNBUFFERED"] = "1"
         env["PYTHONPATH"] = SMARTVISION_DIR + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
 
@@ -371,6 +375,7 @@ def main():
     parser.add_argument("--mock-esp32", action="store_true", help="Launch virtual ESP32 hardware client")
     parser.add_argument("--synthetic", action="store_true", help="Force synthetic test pattern video stream")
     parser.add_argument("--detector", "--detector-mode", dest="detector", type=str, default="auto", choices=["auto", "mock", "yolo"], help="Person detector mode")
+    parser.add_argument("--camera-index", type=int, default=None, help="Camera device index (default: 0 for physical webcam, 1 for OBS Virtual Camera)")
     parser.add_argument("--debug", action="store_true", help="Enable verbose debug logging")
     parser.add_argument("--check-only", action="store_true", help="Execute preflight checks and exit")
     args = parser.parse_args()
@@ -384,6 +389,7 @@ def main():
         force_synthetic=args.synthetic,
         detector_mode=args.detector,
         debug=args.debug,
+        camera_index=args.camera_index,
     )
 
     if args.check_only:
