@@ -219,6 +219,7 @@ async def websocket_client_endpoint(websocket: WebSocket):
             # 3. Route operator commands
             if msg_type in ("cmd.servo.move", "cmd.move"):
                 pipeline.stop_tracking()
+                pipeline.set_mode("manual")
                 state_mgr.set_tracking_mode("manual")
                 try:
                     move_p = ServoMovePayload.model_validate(payload)
@@ -240,6 +241,7 @@ async def websocket_client_endpoint(websocket: WebSocket):
 
             elif msg_type in ("cmd.jog", "cmd.servo.jog"):
                 pipeline.stop_tracking()
+                pipeline.set_mode("manual")
                 state_mgr.set_tracking_mode("manual")
                 try:
                     jog_p = ServoJogPayload.model_validate(payload)
@@ -260,6 +262,8 @@ async def websocket_client_endpoint(websocket: WebSocket):
 
             elif msg_type in ("cmd.servo.center", "cmd.center"):
                 pipeline.stop_tracking()
+                pipeline.set_mode("manual")
+                state_mgr.set_tracking_mode("manual")
                 center_p = ServoCenterPayload.model_validate(payload)
                 cmd_out = hub.create_envelope(
                     msg_type="cmd.servo.center",
@@ -303,7 +307,13 @@ async def websocket_client_endpoint(websocket: WebSocket):
                 if state_mgr.estop_active or (state_mgr.failsafe_active and mode_p.mode == "auto_track"):
                     await _send_error(hub, websocket, "Cannot engage tracking mode while E-Stop or Failsafe is active", corr_id)
                     continue
-                pipeline.set_mode(mode_p.mode)
+                if mode_p.mode == "idle":
+                    pipeline.stop_tracking()
+                elif mode_p.mode == "auto_track":
+                    pipeline.set_mode("auto_track")
+                else:
+                    pipeline.stop_tracking()
+                    pipeline.set_mode(mode_p.mode)
                 state_mgr.set_tracking_mode(mode_p.mode)
                 # Broadcast mode update
                 await hub.broadcast_to_clients(envelope.model_dump())

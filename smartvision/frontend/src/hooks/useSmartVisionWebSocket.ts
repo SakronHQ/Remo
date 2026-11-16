@@ -305,9 +305,6 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
           } else if (type === "track.frame_target") {
             const ft = payload as TrackFrameTargetPayload;
             setFrameTarget(ft);
-            if (ft.tracking_mode) {
-              setActiveMode(ft.tracking_mode);
-            }
             if (ft.latency_ms !== undefined) {
               setLatencyMs(Math.round(ft.latency_ms));
             }

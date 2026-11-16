@@ -60,7 +60,7 @@ bool ProtocolHandler::handleInboundPayload(const char* json_str, size_t length) 
         _dispatchServoMove(payload, corr_id);
         return true;
     } 
-    else if (strcmp(type, "cmd.jog") == 0) {
+    else if (strcmp(type, "cmd.jog") == 0 || strcmp(type, "cmd.servo.jog") == 0) {
         _dispatchJog(payload, corr_id);
         return true;
     } 
@@ -112,9 +112,9 @@ void ProtocolHandler::_dispatchServoMove(JsonObject& payload, const char* corr_i
         cmd.type = MOTION_CMD_ABSOLUTE;
     }
 
-    cmd.pan = payload["pan"].is<float>() ? payload["pan"].as<float>() : (float)SERVO_PAN_CENTER_DEG;
-    cmd.tilt = payload["tilt"].is<float>() ? payload["tilt"].as<float>() : (float)SERVO_TILT_CENTER_DEG;
-    cmd.speed = payload["speed"] | 0.5f;
+    cmd.pan = !payload["pan"].isNull() ? payload["pan"].as<float>() : (float)SERVO_PAN_CENTER_DEG;
+    cmd.tilt = !payload["tilt"].isNull() ? payload["tilt"].as<float>() : (float)SERVO_TILT_CENTER_DEG;
+    cmd.speed = !payload["speed"].isNull() ? payload["speed"].as<float>() : 0.5f;
     cmd.smooth = payload["smooth"] | true;
     cmd.release_pwm = false;
 
@@ -126,9 +126,23 @@ void ProtocolHandler::_dispatchJog(JsonObject& payload, const char* corr_id) {
 
     MotionCommand_t cmd;
     cmd.type = MOTION_CMD_RELATIVE;
-    cmd.pan = payload["delta_pan"].is<float>() ? payload["delta_pan"].as<float>() : (payload["pan"].is<float>() ? payload["pan"].as<float>() : 0.0f);
-    cmd.tilt = payload["delta_tilt"].is<float>() ? payload["delta_tilt"].as<float>() : (payload["tilt"].is<float>() ? payload["tilt"].as<float>() : 0.0f);
-    cmd.speed = payload["speed"] | 0.5f;
+    if (!payload["delta_pan"].isNull()) {
+        cmd.pan = payload["delta_pan"].as<float>();
+    } else if (!payload["pan"].isNull()) {
+        cmd.pan = payload["pan"].as<float>();
+    } else {
+        cmd.pan = 0.0f;
+    }
+
+    if (!payload["delta_tilt"].isNull()) {
+        cmd.tilt = payload["delta_tilt"].as<float>();
+    } else if (!payload["tilt"].isNull()) {
+        cmd.tilt = payload["tilt"].as<float>();
+    } else {
+        cmd.tilt = 0.0f;
+    }
+
+    cmd.speed = !payload["speed"].isNull() ? payload["speed"].as<float>() : 0.5f;
     cmd.smooth = true;
     cmd.release_pwm = false;
 
@@ -142,7 +156,7 @@ void ProtocolHandler::_dispatchCenter(JsonObject& payload, const char* corr_id) 
     cmd.type = MOTION_CMD_CENTER;
     cmd.pan = SERVO_PAN_CENTER_DEG;
     cmd.tilt = SERVO_TILT_CENTER_DEG;
-    cmd.speed = payload["speed"] | 0.4f;
+    cmd.speed = !payload["speed"].isNull() ? payload["speed"].as<float>() : 0.4f;
     cmd.smooth = true;
     cmd.release_pwm = false;
 

@@ -32,7 +32,7 @@
 // 2. FastAPI Backend WebSocket Configuration
 // ============================================================================
 #ifndef BACKEND_HOST
-#define BACKEND_HOST                "192.168.1.100"
+#define BACKEND_HOST                "192.168.0.103"
 #endif
 
 #ifndef BACKEND_PORT
