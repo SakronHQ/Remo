@@ -35,17 +35,44 @@ export default function SmartVisionDashboard() {
     clearAlerts,
   } = useSmartVisionWebSocket();
 
+  // Manual override wrappers that switch mode to manual when jogging
+  const handleJog = useCallback(
+    (deltaPan: number, deltaTilt: number, speed: number) => {
+      if (activeMode !== "manual") {
+        sendTrackMode("manual");
+      }
+      sendServoJog(deltaPan, deltaTilt, speed);
+    },
+    [activeMode, sendTrackMode, sendServoJog]
+  );
+
+  const handleMoveAbsolute = useCallback(
+    (pan: number, tilt: number, speed: number) => {
+      if (activeMode !== "manual") {
+        sendTrackMode("manual");
+      }
+      sendServoMove(pan, tilt, speed);
+    },
+    [activeMode, sendTrackMode, sendServoMove]
+  );
+
+  const handleCenter = useCallback(
+    (speed = 0.4) => {
+      if (activeMode !== "manual") {
+        sendTrackMode("manual");
+      }
+      sendServoCenter(speed);
+    },
+    [activeMode, sendTrackMode, sendServoCenter]
+  );
+
   // Keyboard shortcut support (WASD, Arrows, C to Center)
   useKeyboardControls({
     enabled: connectionStatus === "connected" && !isEstopActive,
-    stepDeg: 5.0,
-    speed: 0.5,
-    onJog: (deltaPan, deltaTilt, speed) => {
-      sendServoJog(deltaPan, deltaTilt, speed);
-    },
-    onCenter: () => {
-      sendServoCenter(0.4);
-    },
+    stepDeg: 3.0,
+    speed: 0.35,
+    onJog: handleJog,
+    onCenter: () => handleCenter(0.4),
   });
 
   // Target Selection Handlers
@@ -144,9 +171,9 @@ export default function SmartVisionDashboard() {
           <ManualControls
             servosTelemetry={sensorTelemetry?.servos}
             isEstopActive={isEstopActive}
-            onJog={(deltaPan, deltaTilt, speed) => sendServoJog(deltaPan, deltaTilt, speed)}
-            onMoveAbsolute={(pan, tilt, speed) => sendServoMove(pan, tilt, speed)}
-            onCenter={(speed) => sendServoCenter(speed)}
+            onJog={handleJog}
+            onMoveAbsolute={handleMoveAbsolute}
+            onCenter={handleCenter}
           />
 
           {/* Event Logs & Alert Stream */}

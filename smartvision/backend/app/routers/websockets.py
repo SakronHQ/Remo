@@ -218,6 +218,8 @@ async def websocket_client_endpoint(websocket: WebSocket):
 
             # 3. Route operator commands
             if msg_type in ("cmd.servo.move", "cmd.move"):
+                pipeline.stop_tracking()
+                state_mgr.set_tracking_mode("manual")
                 try:
                     move_p = ServoMovePayload.model_validate(payload)
                 except ValidationError as ve:
@@ -237,6 +239,8 @@ async def websocket_client_endpoint(websocket: WebSocket):
                 await hub.send_to_device(cmd_out)
 
             elif msg_type in ("cmd.jog", "cmd.servo.jog"):
+                pipeline.stop_tracking()
+                state_mgr.set_tracking_mode("manual")
                 try:
                     jog_p = ServoJogPayload.model_validate(payload)
                 except ValidationError as ve:

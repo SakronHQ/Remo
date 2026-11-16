@@ -30,12 +30,15 @@ export function ManualControls({
   onMoveAbsolute,
   onCenter,
 }: ManualControlsProps) {
-  const [speed, setSpeed] = useState<number>(0.5);
-  const [stepDeg, setStepDeg] = useState<number>(5.0);
+  const [speed, setSpeed] = useState<number>(0.35);
+  const [stepDeg, setStepDeg] = useState<number>(3.0);
   const [isDraggingJoystick, setIsDraggingJoystick] = useState<boolean>(false);
   const [joystickPos, setJoystickPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const joystickRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef<boolean>(false);
+  const currentPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const continuousJogIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastJogRef = useRef<number>(0);
 
   const currentPan = servosTelemetry?.pan_angle ?? 90.0;
@@ -62,22 +65,44 @@ export function ManualControls({
     )
   );
 
-  // Virtual Joystick Pointer Handlers
-  const handleJoystickPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isEstopActive) return;
-    setIsDraggingJoystick(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-    handleJoystickMove(e);
-  };
+  // Send a jog tick derived from the normalized joystick displacement
+  const sendJogFromPosition = useCallback(
+    (x: number, y: number, force = false) => {
+      if (!joystickRef.current) return;
+      const rect = joystickRef.current.getBoundingClientRect();
+      const maxRadius = rect.width / 2 - 16;
+      if (maxRadius <= 0) return;
 
-  const handleJoystickMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDraggingJoystick || !joystickRef.current) return;
+      const normXRatio = x / maxRadius;
+      const normYRatio = y / maxRadius;
+
+      // Small deadband: only jog if displaced at least 8% from center
+      const magnitude = Math.hypot(normXRatio, normYRatio);
+      if (magnitude < 0.08) return;
+
+      const now = performance.now();
+      if (!force && now - lastJogRef.current < 55) {
+        return;
+      }
+      lastJogRef.current = now;
+
+      const panJog = normXRatio * stepDeg;
+      const tiltJog = -normYRatio * stepDeg; // Inverted Y for intuitive pitch up
+
+      onJog(Number(panJog.toFixed(1)), Number(tiltJog.toFixed(1)), speed);
+    },
+    [stepDeg, speed, onJog]
+  );
+
+  // Virtual Joystick Pointer Handlers with Continuous Jogging while held
+  const updateJoystickFromPointer = (clientX: number, clientY: number, force = false) => {
+    if (!joystickRef.current) return;
     const rect = joystickRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
 
-    const dx = e.clientX - centerX;
-    const dy = e.clientY - centerY;
+    const dx = clientX - centerX;
+    const dy = clientY - centerY;
     const maxRadius = rect.width / 2 - 16;
     const distance = Math.hypot(dx, dy);
 
@@ -88,27 +113,58 @@ export function ManualControls({
       normY = (dy / distance) * maxRadius;
     }
 
+    currentPosRef.current = { x: normX, y: normY };
     setJoystickPos({ x: normX, y: normY });
+    sendJogFromPosition(normX, normY, force);
+  };
 
-    // Send throttled jog command (~15 Hz)
-    const now = performance.now();
-    if (now - lastJogRef.current > 65) {
-      lastJogRef.current = now;
-      const panJog = (normX / maxRadius) * stepDeg;
-      const tiltJog = -(normY / maxRadius) * stepDeg; // Inverted Y for intuitive pitch up
-      if (Math.abs(panJog) > 0.5 || Math.abs(tiltJog) > 0.5) {
-        onJog(Number(panJog.toFixed(1)), Number(tiltJog.toFixed(1)), speed);
+  const handleJoystickPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isEstopActive) return;
+    isDraggingRef.current = true;
+    setIsDraggingJoystick(true);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+
+    updateJoystickFromPointer(e.clientX, e.clientY, true);
+
+    // Continuous jog timer while holding the joystick
+    if (continuousJogIntervalRef.current) clearInterval(continuousJogIntervalRef.current);
+    continuousJogIntervalRef.current = setInterval(() => {
+      if (isDraggingRef.current) {
+        sendJogFromPosition(currentPosRef.current.x, currentPosRef.current.y, true);
       }
-    }
+    }, 60);
+  };
+
+  const handleJoystickMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    updateJoystickFromPointer(e.clientX, e.clientY);
   };
 
   const handleJoystickPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    isDraggingRef.current = false;
     setIsDraggingJoystick(false);
+    currentPosRef.current = { x: 0, y: 0 };
     setJoystickPos({ x: 0, y: 0 });
+
+    if (continuousJogIntervalRef.current) {
+      clearInterval(continuousJogIntervalRef.current);
+      continuousJogIntervalRef.current = null;
+    }
+
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {}
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (continuousJogIntervalRef.current) {
+        clearInterval(continuousJogIntervalRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="w-full rounded-xl bg-slate-900 border border-slate-800 p-4 shadow-xl flex flex-col space-y-4">
@@ -241,6 +297,7 @@ export function ManualControls({
             onPointerDown={handleJoystickPointerDown}
             onPointerMove={handleJoystickMove}
             onPointerUp={handleJoystickPointerUp}
+            onPointerCancel={handleJoystickPointerUp}
             className={`relative w-36 h-36 rounded-full bg-slate-900 border-2 ${
               isDraggingJoystick
                 ? "border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
