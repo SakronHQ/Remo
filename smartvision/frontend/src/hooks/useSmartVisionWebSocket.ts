@@ -54,7 +54,7 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
   const reconnectAttemptRef = useRef<number>(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSendTimeRef = useRef<number>(0);
+  const lastServoCmdTimeRef = useRef<number>(0);
   const isMountedRef = useRef<boolean>(true);
 
   // Determine WebSocket endpoint
@@ -88,11 +88,11 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
       const now = performance.now();
       // Ensure at least 45ms between non-critical jog/move commands to prevent 20Hz boundary tripping
       if (type.startsWith("cmd.servo") || type === "cmd.jog") {
-        if (now - lastSendTimeRef.current < 45) {
+        if (now - lastServoCmdTimeRef.current < 45) {
           return false;
         }
+        lastServoCmdTimeRef.current = now;
       }
-      lastSendTimeRef.current = now;
 
       const envelope: SmartVisionEnvelope<T> = {
         type,
@@ -117,6 +117,7 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
   // Command Dispatches
   const sendServoMove = useCallback(
     (pan: number, tilt: number, speed = 0.5, mode: "absolute" | "relative" = "absolute", smooth = true) => {
+      setActiveMode("manual");
       return sendEnvelope<ServoMovePayload>("cmd.servo.move", {
         mode,
         pan,
@@ -130,6 +131,7 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
 
   const sendServoJog = useCallback(
     (deltaPan: number, deltaTilt: number, speed = 0.5) => {
+      setActiveMode("manual");
       return sendEnvelope<ServoJogPayload>("cmd.jog", {
         delta_pan: deltaPan,
         delta_tilt: deltaTilt,
@@ -141,6 +143,7 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
 
   const sendServoCenter = useCallback(
     (speed = 0.4) => {
+      setActiveMode("manual");
       return sendEnvelope<ServoCenterPayload>("cmd.servo.center", { speed });
     },
     [sendEnvelope]
@@ -148,6 +151,7 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
 
   const sendServoPatrol = useCallback(
     (enabled: boolean, panMin = 30.0, panMax = 150.0, tiltAngle = 90.0, speedDegS = 20.0) => {
+      setActiveMode(enabled ? "patrol" : "idle");
       return sendEnvelope<ServoPatrolPayload>("cmd.servo.patrol", {
         enabled,
         pan_min: panMin,
@@ -194,6 +198,7 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
         | number
         | [number, number]
     ) => {
+      setActiveMode("auto_track");
       let payload: TrackTargetSelectPayload;
       if (typeof target === "number") {
         payload = { track_id: target };
@@ -209,24 +214,23 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
 
   const sendSelectTrackId = useCallback(
     (trackId: number) => {
-      // Dispatches track.select_id and track.target_select for unified compatibility
-      sendTargetSelect({ track_id: trackId });
+      setActiveMode("auto_track");
       return sendEnvelope<TrackSelectIdPayload>("track.select_id", {
         track_id: trackId,
       });
     },
-    [sendEnvelope, sendTargetSelect]
+    [sendEnvelope]
   );
 
   const sendClickToTrack = useCallback(
     (clickX: number, clickY: number) => {
-      sendTargetSelect({ click_x: clickX, click_y: clickY });
+      setActiveMode("auto_track");
       return sendEnvelope<ClickToTrackPayload>("track.click_to_track", {
         click_x: clickX,
         click_y: clickY,
       });
     },
-    [sendEnvelope, sendTargetSelect]
+    [sendEnvelope]
   );
 
   const sendBuzzer = useCallback(

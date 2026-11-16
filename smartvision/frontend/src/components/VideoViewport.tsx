@@ -266,7 +266,9 @@ export function VideoViewport({
       }
 
       if (matchedTrackId !== null) {
-        if (onTargetSelect) {
+        if (onSelectTrackId) {
+          onSelectTrackId(matchedTrackId);
+        } else if (onTargetSelect) {
           onTargetSelect({
             track_id: matchedTrackId,
             coordinates: [normX, normY],
@@ -274,19 +276,15 @@ export function VideoViewport({
             click_y: Math.round(frameY),
           });
         }
-        if (onSelectTrackId) {
-          onSelectTrackId(matchedTrackId);
-        }
       } else {
-        if (onTargetSelect) {
+        if (onClickToTrack) {
+          onClickToTrack(Math.round(frameX), Math.round(frameY));
+        } else if (onTargetSelect) {
           onTargetSelect({
             coordinates: [normX, normY],
             click_x: Math.round(frameX),
             click_y: Math.round(frameY),
           });
-        }
-        if (onClickToTrack) {
-          onClickToTrack(Math.round(frameX), Math.round(frameY));
         }
       }
     },

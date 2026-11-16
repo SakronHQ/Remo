@@ -925,6 +925,109 @@ class TestLiveBackendServer(unittest.TestCase):
         worker._worker_loop_step = _step
         asyncio.run(run_deadband_test())
 
+    def test_24_estop_bypasses_rate_limiting_and_mode_sync(self):
+        """
+        Verifies:
+        1. E-Stop commands (cmd.estop) bypass client 20 Hz rate limiting.
+        2. Manual jog transitions mode from auto_track to manual and broadcasts mode update.
+        """
+        async def recv_filtered(ws, expected_type: str, timeout: float = 2.0, pred=None):
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                time_left = max(0.05, deadline - time.time())
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=time_left)
+                    data = json.loads(raw)
+                    if data.get("type") == expected_type:
+                        if pred is None or pred(data):
+                            return data
+                except asyncio.TimeoutError:
+                    break
+            raise TimeoutError(f"Did not receive {expected_type} within {timeout}s")
+
+        async def run_estop_ratelimit_test():
+            async with websockets.connect(self.WS_DEVICE_URL) as ws_dev, \
+                       websockets.connect(self.WS_CLIENT_URL) as ws_cli:
+                # Flush initial sys.status
+                await ws_cli.recv()
+
+                # 1. Engage auto_track mode
+                mode_pkt = {
+                    "type": "track.mode_set",
+                    "timestamp": int(time.time() * 1000),
+                    "sender": "frontend",
+                    "seq": 901,
+                    "payload": {"mode": "auto_track"},
+                }
+                await ws_cli.send(json.dumps(mode_pkt))
+                mode_resp = await recv_filtered(ws_cli, "track.mode_set", timeout=2.0)
+                self.assertEqual(mode_resp["payload"]["mode"], "auto_track")
+
+                # 2. Send manual jog - should auto-arbitrate to manual and broadcast mode update
+                # Pause 80ms to satisfy 20 Hz (50ms) rate limiter with Windows timer margin
+                await asyncio.sleep(0.08)
+
+                jog_pkt = {
+                    "type": "cmd.jog",
+                    "timestamp": int(time.time() * 1000),
+                    "sender": "frontend",
+                    "seq": 902,
+                    "payload": {"delta_pan": 5.0, "delta_tilt": 0.0, "speed": 0.5},
+                }
+                await ws_cli.send(json.dumps(jog_pkt))
+                dev_jog = await recv_filtered(ws_dev, "cmd.jog", timeout=2.0)
+                self.assertEqual(dev_jog["payload"]["delta_pan"], 5.0)
+
+                # Client receives mode broadcast switching to manual
+                manual_mode_resp = await recv_filtered(ws_cli, "track.mode_set", timeout=2.0)
+                self.assertEqual(manual_mode_resp["payload"]["mode"], "manual")
+
+                # 3. Flood with fast pings to trigger 20 Hz rate limiter
+                for i in range(4):
+                    fast_ping = {
+                        "type": "sys.ping",
+                        "timestamp": int(time.time() * 1000),
+                        "sender": "frontend",
+                        "seq": 910 + i,
+                        "payload": {},
+                    }
+                    await ws_cli.send(json.dumps(fast_ping))
+
+                # 4. Immediately send E-Stop (rate limiter is tripped)
+                estop_pkt = {
+                    "type": "cmd.estop",
+                    "timestamp": int(time.time() * 1000),
+                    "sender": "frontend",
+                    "seq": 920,
+                    "payload": {"action": "freeze", "reason": "rate_limit_bypass_test"},
+                }
+                await ws_cli.send(json.dumps(estop_pkt))
+
+                # E-Stop MUST NOT be dropped as rate_limit_exceeded!
+                # It must trigger alert.event for estop_activated and engage estop_active
+                alert_estop = await recv_filtered(
+                    ws_cli,
+                    "alert.event",
+                    timeout=2.0,
+                    pred=lambda d: d.get("payload", {}).get("event_type") == "estop_activated"
+                )
+                self.assertEqual(alert_estop["payload"]["event_type"], "estop_activated")
+                self.assertTrue(self.app_instance.state.state_manager.estop_active)
+
+                # 5. Clean up: Resume from E-stop
+                resume_pkt = {
+                    "type": "cmd.estop",
+                    "timestamp": int(time.time() * 1000),
+                    "sender": "frontend",
+                    "seq": 921,
+                    "payload": {"action": "resume"},
+                }
+                await ws_cli.send(json.dumps(resume_pkt))
+                await asyncio.sleep(0.05)
+                self.assertFalse(self.app_instance.state.state_manager.estop_active)
+
+        asyncio.run(run_estop_ratelimit_test())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

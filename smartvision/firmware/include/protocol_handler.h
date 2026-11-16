@@ -90,6 +90,7 @@ private:
     void _dispatchServoMove(JsonObject& payload, const char* corr_id);
     void _dispatchJog(JsonObject& payload, const char* corr_id);
     void _dispatchCenter(JsonObject& payload, const char* corr_id);
+    void _dispatchPatrol(JsonObject& payload, const char* corr_id);
     void _dispatchEstop(JsonObject& payload, const char* corr_id);
     void _dispatchBuzzer(JsonObject& payload, const char* corr_id);
     void _dispatchPing(JsonObject& payload, const char* corr_id, uint64_t timestamp);

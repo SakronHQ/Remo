@@ -178,22 +178,7 @@ async def websocket_client_endpoint(websocket: WebSocket):
         while True:
             data_str = await websocket.receive_text()
 
-            # 1. Enforce 20 Hz rate limiting
-            if not hub.check_client_rate_limit(websocket):
-                error_env = hub.create_envelope(
-                    msg_type="alert.event",
-                    payload={
-                        "event_id": f"ratelimit_{int(time.time()*1000)}",
-                        "event_type": "rate_limit_exceeded",
-                        "severity": "warning",
-                        "source": "backend",
-                        "message": "Client command rate exceeded 20 Hz threshold. Command dropped.",
-                    },
-                )
-                await hub.send_to_client(websocket, error_env)
-                continue
-
-            # 2. Parse JSON envelope
+            # 1. Parse JSON envelope first
             try:
                 data = json.loads(data_str)
                 envelope = SmartVisionEnvelope.model_validate(data)
@@ -216,11 +201,24 @@ async def websocket_client_endpoint(websocket: WebSocket):
             payload = envelope.payload
             corr_id = envelope.corr_id
 
+            # 2. Enforce 20 Hz rate limiting (safety-critical E-Stop bypasses rate limiter)
+            if msg_type not in ("cmd.estop", "sys.safestop"):
+                if not hub.check_client_rate_limit(websocket):
+                    error_env = hub.create_envelope(
+                        msg_type="alert.event",
+                        payload={
+                            "event_id": f"ratelimit_{int(time.time()*1000)}",
+                            "event_type": "rate_limit_exceeded",
+                            "severity": "warning",
+                            "source": "backend",
+                            "message": "Client command rate exceeded 20 Hz threshold. Command dropped.",
+                        },
+                    )
+                    await hub.send_to_client(websocket, error_env)
+                    continue
+
             # 3. Route operator commands
             if msg_type in ("cmd.servo.move", "cmd.move"):
-                pipeline.stop_tracking()
-                pipeline.set_mode("manual")
-                state_mgr.set_tracking_mode("manual")
                 try:
                     move_p = ServoMovePayload.model_validate(payload)
                 except ValidationError as ve:
@@ -231,6 +229,18 @@ async def websocket_client_endpoint(websocket: WebSocket):
                     await _send_error(hub, websocket, "Cannot move servos while E-Stop or Failsafe is active", corr_id)
                     continue
 
+                prev_mode = state_mgr.tracking_mode
+                pipeline.stop_tracking()
+                pipeline.set_mode("manual")
+                state_mgr.set_tracking_mode("manual")
+                if prev_mode != "manual":
+                    mode_env = hub.create_envelope(
+                        msg_type="track.mode_set",
+                        payload={"mode": "manual", "target_selection": "primary"},
+                        corr_id=corr_id,
+                    )
+                    await hub.broadcast_to_clients(mode_env)
+
                 # Forward validated move to ESP32
                 cmd_out = hub.create_envelope(
                     msg_type="cmd.servo.move",
@@ -240,9 +250,6 @@ async def websocket_client_endpoint(websocket: WebSocket):
                 await hub.send_to_device(cmd_out)
 
             elif msg_type in ("cmd.jog", "cmd.servo.jog"):
-                pipeline.stop_tracking()
-                pipeline.set_mode("manual")
-                state_mgr.set_tracking_mode("manual")
                 try:
                     jog_p = ServoJogPayload.model_validate(payload)
                 except ValidationError as ve:
@@ -253,6 +260,18 @@ async def websocket_client_endpoint(websocket: WebSocket):
                     await _send_error(hub, websocket, "Cannot jog servos while E-Stop or Failsafe is active", corr_id)
                     continue
 
+                prev_mode = state_mgr.tracking_mode
+                pipeline.stop_tracking()
+                pipeline.set_mode("manual")
+                state_mgr.set_tracking_mode("manual")
+                if prev_mode != "manual":
+                    mode_env = hub.create_envelope(
+                        msg_type="track.mode_set",
+                        payload={"mode": "manual", "target_selection": "primary"},
+                        corr_id=corr_id,
+                    )
+                    await hub.broadcast_to_clients(mode_env)
+
                 cmd_out = hub.create_envelope(
                     msg_type="cmd.jog",
                     payload=jog_p.model_dump(),
@@ -261,10 +280,28 @@ async def websocket_client_endpoint(websocket: WebSocket):
                 await hub.send_to_device(cmd_out)
 
             elif msg_type in ("cmd.servo.center", "cmd.center"):
+                try:
+                    center_p = ServoCenterPayload.model_validate(payload)
+                except ValidationError as ve:
+                    await _send_error(hub, websocket, f"Invalid center parameters: {ve}", corr_id)
+                    continue
+
+                if state_mgr.estop_active or state_mgr.failsafe_active:
+                    await _send_error(hub, websocket, "Cannot center servos while E-Stop or Failsafe is active", corr_id)
+                    continue
+
+                prev_mode = state_mgr.tracking_mode
                 pipeline.stop_tracking()
                 pipeline.set_mode("manual")
                 state_mgr.set_tracking_mode("manual")
-                center_p = ServoCenterPayload.model_validate(payload)
+                if prev_mode != "manual":
+                    mode_env = hub.create_envelope(
+                        msg_type="track.mode_set",
+                        payload={"mode": "manual", "target_selection": "primary"},
+                        corr_id=corr_id,
+                    )
+                    await hub.broadcast_to_clients(mode_env)
+
                 cmd_out = hub.create_envelope(
                     msg_type="cmd.servo.center",
                     payload=center_p.model_dump(),
@@ -273,7 +310,6 @@ async def websocket_client_endpoint(websocket: WebSocket):
                 await hub.send_to_device(cmd_out)
 
             elif msg_type in ("cmd.servo.patrol", "cmd.patrol"):
-                pipeline.stop_tracking()
                 try:
                     patrol_p = ServoPatrolPayload.model_validate(payload)
                 except ValidationError as ve:
@@ -283,6 +319,17 @@ async def websocket_client_endpoint(websocket: WebSocket):
                 if state_mgr.estop_active or state_mgr.failsafe_active:
                     await _send_error(hub, websocket, "Cannot start patrol while E-Stop or Failsafe is active", corr_id)
                     continue
+
+                pipeline.stop_tracking()
+                new_mode = "patrol" if patrol_p.enabled else "idle"
+                pipeline.set_mode(new_mode)
+                state_mgr.set_tracking_mode(new_mode)
+                mode_env = hub.create_envelope(
+                    msg_type="track.mode_set",
+                    payload={"mode": new_mode, "target_selection": "primary"},
+                    corr_id=corr_id,
+                )
+                await hub.broadcast_to_clients(mode_env)
 
                 cmd_out = hub.create_envelope(
                     msg_type="cmd.servo.patrol",

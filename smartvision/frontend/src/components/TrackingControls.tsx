@@ -103,11 +103,13 @@ export function TrackingControls({
               key={m.id}
               disabled={isEstopActive}
               onClick={() => {
-                onSetMode(m.id);
                 if (m.id === "patrol") {
                   onPatrolToggle(true);
-                } else if (currentMode === "patrol") {
-                  onPatrolToggle(false);
+                } else {
+                  if (currentMode === "patrol") {
+                    onPatrolToggle(false);
+                  }
+                  onSetMode(m.id);
                 }
               }}
               className={`flex flex-col items-center justify-center p-2.5 rounded-lg border font-mono text-xs transition-all disabled:opacity-40 ${

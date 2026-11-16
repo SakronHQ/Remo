@@ -114,8 +114,9 @@ class TrackingWorker:
                 # 5. Update central state manager
                 telem_payload = result.telemetry_message.get("payload", {})
                 target_locked = result.target_result.state in (TargetState.TRACKING, TargetState.COASTING)
+                effective_mode = "auto_track" if self.pipeline.selector.mode in ("auto_track", "locked_id") else self.pipeline.selector.mode
                 self.state.update_tracking_state(
-                    mode=self.pipeline.selector.mode,
+                    mode=effective_mode,
                     locked=target_locked,
                     active_track_id=result.target_result.locked_track_id,
                     tracks_count=len(result.tracks),
@@ -130,14 +131,14 @@ class TrackingWorker:
                 is_stale = (now - ts_sec) > settings.STALE_TRACKING_TIMEOUT_S
 
                 # Command dispatch condition:
-                # 1. Mode is auto_track
+                # 1. Mode is auto_track or locked_id
                 # 2. ESP32 is connected
                 # 3. Neither E-Stop nor Failsafe is active
                 # 4. Vision frame is not stale (< 300 ms)
                 # 5. PID controller determined a command should be dispatched (respects deadband suppression & auto-center)
                 # 6. Enforces 20 Hz (50 ms) command rate
                 if (
-                    self.pipeline.selector.mode == "auto_track"
+                    self.pipeline.selector.mode in ("auto_track", "locked_id")
                     and not self.state.estop_active
                     and not self.state.failsafe_active
                     and self.state.esp32_connected

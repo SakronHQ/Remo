@@ -68,6 +68,10 @@ bool ProtocolHandler::handleInboundPayload(const char* json_str, size_t length) 
         _dispatchCenter(payload, corr_id);
         return true;
     } 
+    else if (strcmp(type, "cmd.servo.patrol") == 0 || strcmp(type, "cmd.patrol") == 0) {
+        _dispatchPatrol(payload, corr_id);
+        return true;
+    }
     else if (strcmp(type, "cmd.estop") == 0) {
         // cmd.estop defaults to immediate hardware safe-stop and PCA9685 output disable
         if (!_onMotion) return true;
@@ -112,10 +116,13 @@ void ProtocolHandler::_dispatchServoMove(JsonObject& payload, const char* corr_i
         cmd.type = MOTION_CMD_ABSOLUTE;
     }
 
-    cmd.pan = !payload["pan"].isNull() ? payload["pan"].as<float>() : (float)SERVO_PAN_CENTER_DEG;
-    cmd.tilt = !payload["tilt"].isNull() ? payload["tilt"].as<float>() : (float)SERVO_TILT_CENTER_DEG;
+    float default_pan = (cmd.type == MOTION_CMD_RELATIVE) ? 0.0f : (float)SERVO_PAN_CENTER_DEG;
+    float default_tilt = (cmd.type == MOTION_CMD_RELATIVE) ? 0.0f : (float)SERVO_TILT_CENTER_DEG;
+
+    cmd.pan = !payload["pan"].isNull() ? payload["pan"].as<float>() : default_pan;
+    cmd.tilt = !payload["tilt"].isNull() ? payload["tilt"].as<float>() : default_tilt;
     cmd.speed = !payload["speed"].isNull() ? payload["speed"].as<float>() : 0.5f;
-    cmd.smooth = payload["smooth"] | true;
+    cmd.smooth = !payload["smooth"].isNull() ? payload["smooth"].as<bool>() : true;
     cmd.release_pwm = false;
 
     _onMotion(cmd);
@@ -159,6 +166,31 @@ void ProtocolHandler::_dispatchCenter(JsonObject& payload, const char* corr_id) 
     cmd.speed = !payload["speed"].isNull() ? payload["speed"].as<float>() : 0.4f;
     cmd.smooth = true;
     cmd.release_pwm = false;
+
+    _onMotion(cmd);
+}
+
+void ProtocolHandler::_dispatchPatrol(JsonObject& payload, const char* corr_id) {
+    if (!_onMotion) return;
+
+    bool enabled = !payload["enabled"].isNull() ? payload["enabled"].as<bool>() : true;
+    MotionCommand_t cmd;
+    if (!enabled) {
+        cmd.type = MOTION_CMD_RELATIVE;
+        cmd.pan = 0.0f;
+        cmd.tilt = 0.0f;
+        cmd.speed = 0.4f;
+        cmd.smooth = true;
+        cmd.release_pwm = false;
+    } else {
+        cmd.type = MOTION_CMD_ABSOLUTE;
+        cmd.pan = !payload["pan_min"].isNull() ? payload["pan_min"].as<float>() : 30.0f;
+        cmd.tilt = !payload["tilt_angle"].isNull() ? payload["tilt_angle"].as<float>() : (float)SERVO_TILT_CENTER_DEG;
+        float speed_deg_s = !payload["speed_deg_s"].isNull() ? payload["speed_deg_s"].as<float>() : 20.0f;
+        cmd.speed = constrain(speed_deg_s / 45.0f, 0.1f, 1.0f);
+        cmd.smooth = true;
+        cmd.release_pwm = false;
+    }
 
     _onMotion(cmd);
 }

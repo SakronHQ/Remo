@@ -208,8 +208,9 @@ class MockESP32Firmware:
 
         recognized_commands = (
             "cmd.servo.move", "cmd.move",
-            "cmd.jog",
+            "cmd.jog", "cmd.servo.jog",
             "cmd.servo.center", "cmd.center",
+            "cmd.servo.patrol", "cmd.patrol",
             "sys.ping", "ping",
             "cmd.buzzer",
             "sys.safestop", "cmd.estop"
@@ -256,6 +257,15 @@ class MockESP32Firmware:
             self.buzzer_active = False
             self.buzzer_pattern = "off"
             self.servos.center()
+
+        elif msg_type in ("cmd.servo.patrol", "cmd.patrol"):
+            enabled = payload.get("enabled", True)
+            if not enabled:
+                self.servos.freeze()
+            else:
+                pan_min = payload.get("pan_min", 30.0)
+                tilt = payload.get("tilt_angle", 90.0)
+                self.servos.set_target(pan_min, tilt, 0.4)
 
         elif msg_type == "cmd.buzzer":
             action = payload.get("action", "off").lower()

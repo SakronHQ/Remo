@@ -35,35 +35,26 @@ export default function SmartVisionDashboard() {
     clearAlerts,
   } = useSmartVisionWebSocket();
 
-  // Manual override wrappers that switch mode to manual when jogging
+  // Manual override wrappers
   const handleJog = useCallback(
     (deltaPan: number, deltaTilt: number, speed: number) => {
-      if (activeMode !== "manual") {
-        sendTrackMode("manual");
-      }
       sendServoJog(deltaPan, deltaTilt, speed);
     },
-    [activeMode, sendTrackMode, sendServoJog]
+    [sendServoJog]
   );
 
   const handleMoveAbsolute = useCallback(
     (pan: number, tilt: number, speed: number) => {
-      if (activeMode !== "manual") {
-        sendTrackMode("manual");
-      }
       sendServoMove(pan, tilt, speed);
     },
-    [activeMode, sendTrackMode, sendServoMove]
+    [sendServoMove]
   );
 
   const handleCenter = useCallback(
     (speed = 0.4) => {
-      if (activeMode !== "manual") {
-        sendTrackMode("manual");
-      }
       sendServoCenter(speed);
     },
-    [activeMode, sendTrackMode, sendServoCenter]
+    [sendServoCenter]
   );
 
   // Keyboard shortcut support (WASD, Arrows, C to Center)
