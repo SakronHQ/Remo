@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Compass,
   Crosshair,
@@ -8,6 +8,7 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Sliders,
   Target,
   Unlock,
   UserCheck,
@@ -28,6 +29,7 @@ interface TrackingControlsProps {
   onSelectTrackId: (trackId: number) => void;
   onStopTracking: () => void;
   onPatrolToggle: (enabled: boolean) => void;
+  onUpdateTrackingConfig?: (config: { invert_pan?: boolean; invert_tilt?: boolean; preset?: string }) => void;
 }
 
 export function TrackingControls({
@@ -39,7 +41,11 @@ export function TrackingControls({
   onSelectTrackId,
   onStopTracking,
   onPatrolToggle,
+  onUpdateTrackingConfig,
 }: TrackingControlsProps) {
+  const [invertPan, setInvertPan] = useState(false);
+  const [invertTilt, setInvertTilt] = useState(false);
+  const [activePreset, setActivePreset] = useState<"smooth" | "normal" | "sports">("normal");
   const modes: { id: TrackingMode; label: string; icon: React.ReactNode; desc: string }[] = [
     {
       id: "auto_track",
@@ -123,6 +129,76 @@ export function TrackingControls({
             </button>
           );
         })}
+      </div>
+
+      {/* Motion Tuning & Inversion Toggles */}
+      <div className="bg-slate-950 rounded-lg border border-slate-800 p-3 space-y-2.5 font-mono text-xs">
+        <div className="flex items-center justify-between text-slate-400">
+          <span className="font-semibold uppercase tracking-wider flex items-center space-x-1.5 text-[11px]">
+            <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Axis Inversion & Presets</span>
+          </span>
+          <span className="text-[10px] text-cyan-400 uppercase font-bold">{activePreset}</span>
+        </div>
+
+        {/* Pan / Tilt Inversion Toggles */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => {
+              const next = !invertPan;
+              setInvertPan(next);
+              onUpdateTrackingConfig?.({ invert_pan: next });
+            }}
+            className={`flex items-center justify-between px-2.5 py-1.5 rounded border text-[11px] transition-colors ${
+              invertPan
+                ? "bg-amber-950/70 border-amber-500/60 text-amber-300 font-bold"
+                : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
+            }`}
+          >
+            <span>Invert Pan (X)</span>
+            <span className={`text-[10px] px-1 rounded ${invertPan ? "bg-amber-500/30 text-amber-300" : "text-slate-500"}`}>
+              {invertPan ? "REV" : "NORM"}
+            </span>
+          </button>
+
+          <button
+            onClick={() => {
+              const next = !invertTilt;
+              setInvertTilt(next);
+              onUpdateTrackingConfig?.({ invert_tilt: next });
+            }}
+            className={`flex items-center justify-between px-2.5 py-1.5 rounded border text-[11px] transition-colors ${
+              invertTilt
+                ? "bg-amber-950/70 border-amber-500/60 text-amber-300 font-bold"
+                : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
+            }`}
+          >
+            <span>Invert Tilt (Y)</span>
+            <span className={`text-[10px] px-1 rounded ${invertTilt ? "bg-amber-500/30 text-amber-300" : "text-slate-500"}`}>
+              {invertTilt ? "REV" : "NORM"}
+            </span>
+          </button>
+        </div>
+
+        {/* Presets: Smooth / Normal / Sports */}
+        <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+          {(["smooth", "normal", "sports"] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => {
+                setActivePreset(p);
+                onUpdateTrackingConfig?.({ preset: p });
+              }}
+              className={`py-1 rounded text-[10px] uppercase font-bold tracking-wider border transition-colors ${
+                activePreset === p
+                  ? "bg-cyan-950 border-cyan-500 text-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.2)]"
+                  : "bg-slate-900 border-slate-800 text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+              }`}
+            >
+              {p === "smooth" ? "Cinematic" : p === "normal" ? "Standard" : "Sports"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Active Locked Target Card */}

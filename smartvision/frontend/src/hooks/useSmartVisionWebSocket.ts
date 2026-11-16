@@ -180,6 +180,13 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
     [sendEnvelope]
   );
 
+  const sendTrackingConfig = useCallback(
+    (config: { invert_pan?: boolean; invert_tilt?: boolean; preset?: string }) => {
+      return sendEnvelope("cmd.tracking.config", config);
+    },
+    [sendEnvelope]
+  );
+
   const sendTrackMode = useCallback(
     (mode: TrackingMode) => {
       setActiveMode(mode);
@@ -408,6 +415,7 @@ export function useSmartVisionWebSocket(options: UseSmartVisionWebSocketOptions 
     sendServoPatrol,
     sendEStop,
     sendTrackMode,
+    sendTrackingConfig,
     sendTargetSelect,
     sendSelectTrackId,
     sendClickToTrack,

@@ -2,11 +2,14 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Camera,
+  Circle,
   Crosshair,
   Maximize2,
   Minimize2,
   RefreshCw,
   Sliders,
+  StopCircle,
   Target,
   Video,
   VideoOff,
@@ -48,15 +51,127 @@ export function VideoViewport({
   const zoomCanvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
+  const frameWidth = frameTarget?.frame_dimensions?.width || 640;
+  const frameHeight = frameTarget?.frame_dimensions?.height || 480;
+
   const [streamError, setStreamError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showOverlays, setShowOverlays] = useState(true);
   const [showDeadband, setShowDeadband] = useState(true);
   const [showTargetZoom, setShowTargetZoom] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
   const [clickRipple, setClickRipple] = useState<{ x: number; y: number; time: number } | null>(null);
 
-  const frameWidth = frameTarget?.frame_dimensions?.width || 640;
-  const frameHeight = frameTarget?.frame_dimensions?.height || 480;
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingAnimIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isRecording) {
+      timer = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } else {
+      setRecordSeconds(0);
+    }
+    return () => clearInterval(timer);
+  }, [isRecording]);
+
+  const takeSnapshot = useCallback(() => {
+    const img = imgRef.current;
+    if (!img) return;
+
+    const snapCanvas = document.createElement("canvas");
+    snapCanvas.width = img.naturalWidth || frameWidth;
+    snapCanvas.height = img.naturalHeight || frameHeight;
+    const sctx = snapCanvas.getContext("2d");
+    if (!sctx) return;
+
+    sctx.drawImage(img, 0, 0, snapCanvas.width, snapCanvas.height);
+    const canvas = canvasRef.current;
+    if (showOverlays && canvas) {
+      sctx.drawImage(canvas, 0, 0, snapCanvas.width, snapCanvas.height);
+    }
+
+    const now = new Date();
+    const ts = now.toISOString().replace(/[:.]/g, "-");
+    const link = document.createElement("a");
+    link.download = `SmartVision_${ts}.jpg`;
+    link.href = snapCanvas.toDataURL("image/jpeg", 0.95);
+    link.click();
+  }, [frameWidth, frameHeight, showOverlays]);
+
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (recordingAnimIdRef.current) {
+        cancelAnimationFrame(recordingAnimIdRef.current);
+        recordingAnimIdRef.current = null;
+      }
+      setIsRecording(false);
+      return;
+    }
+
+    const img = imgRef.current;
+    if (!img) return;
+
+    try {
+      const compCanvas = document.createElement("canvas");
+      compCanvas.width = img.naturalWidth || frameWidth;
+      compCanvas.height = img.naturalHeight || frameHeight;
+      const cctx = compCanvas.getContext("2d");
+      if (!cctx) return;
+
+      const drawLoop = () => {
+        if (imgRef.current && cctx) {
+          cctx.drawImage(imgRef.current, 0, 0, compCanvas.width, compCanvas.height);
+          if (showOverlays && canvasRef.current) {
+            cctx.drawImage(canvasRef.current, 0, 0, compCanvas.width, compCanvas.height);
+          }
+        }
+        recordingAnimIdRef.current = requestAnimationFrame(drawLoop);
+      };
+      drawLoop();
+
+      const stream = compCanvas.captureStream(30);
+      const mime = typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm";
+
+      const recorder = new MediaRecorder(stream, { mimeType: mime });
+      recordedChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          recordedChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        if (recordingAnimIdRef.current) {
+          cancelAnimationFrame(recordingAnimIdRef.current);
+          recordingAnimIdRef.current = null;
+        }
+        const blob = new Blob(recordedChunksRef.current, { type: mime });
+        const url = URL.createObjectURL(blob);
+        const now = new Date();
+        const ts = now.toISOString().replace(/[:.]/g, "-");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `SmartVision_Recording_${ts}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      recorder.start(500);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Failed to start MediaRecorder:", err);
+    }
+  }, [isRecording, frameWidth, frameHeight, showOverlays]);
 
   // Render synchronized vector HUD over video
   useEffect(() => {
@@ -462,6 +577,30 @@ export function VideoViewport({
           >
             <ZoomIn className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">ZOOM</span>
+          </button>
+
+          <button
+            onClick={takeSnapshot}
+            title="Take Camera Snapshot (JPEG)"
+            className="p-1.5 rounded bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-700/50 transition-colors text-xs font-mono flex items-center space-x-1"
+          >
+            <Camera className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">SNAP</span>
+          </button>
+
+          <button
+            onClick={toggleRecording}
+            title={isRecording ? "Stop Recording" : "Record Live Video (WebM)"}
+            className={`p-1.5 rounded transition-colors text-xs font-mono flex items-center space-x-1 ${
+              isRecording
+                ? "bg-rose-950 text-rose-300 border border-rose-500 animate-pulse font-bold"
+                : "bg-slate-900/80 text-slate-300 border border-slate-700/50 hover:bg-slate-800"
+            }`}
+          >
+            {isRecording ? <StopCircle className="w-3.5 h-3.5 text-rose-500" /> : <Circle className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />}
+            <span className="hidden sm:inline">
+              {isRecording ? `${String(Math.floor(recordSeconds / 60)).padStart(2, "0")}:${String(recordSeconds % 60).padStart(2, "0")}` : "REC"}
+            </span>
           </button>
 
           <button

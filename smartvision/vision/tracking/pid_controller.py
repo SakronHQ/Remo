@@ -239,6 +239,46 @@ class DualAxisTrackingController:
         self._last_delta_tilt = 0.0
         self._was_settled = True
 
+        # Inversion & Dynamic Performance Presets
+        self.invert_pan = False
+        self.invert_tilt = False
+        self.current_preset = "normal"
+
+    PRESETS = {
+        "smooth": {
+            "kp_pan": 0.035, "kd_pan": 0.003, "kp_tilt": 0.025, "kd_tilt": 0.002,
+            "max_slew": 50.0, "ema_alpha": 0.20
+        },
+        "normal": {
+            "kp_pan": 0.055, "kd_pan": 0.006, "kp_tilt": 0.040, "kd_tilt": 0.004,
+            "max_slew": 80.0, "ema_alpha": 0.35
+        },
+        "sports": {
+            "kp_pan": 0.085, "kd_pan": 0.010, "kp_tilt": 0.065, "kd_tilt": 0.008,
+            "max_slew": 130.0, "ema_alpha": 0.60
+        },
+    }
+
+    def set_preset(self, preset_name: str) -> None:
+        """Applies dynamic PID & smoothing performance preset ('smooth', 'normal', 'sports')."""
+        if preset_name in self.PRESETS:
+            cfg = self.PRESETS[preset_name]
+            self.pid_pan.kp = cfg["kp_pan"]
+            self.pid_pan.kd = cfg["kd_pan"]
+            self.pid_tilt.kp = cfg["kp_tilt"]
+            self.pid_tilt.kd = cfg["kd_tilt"]
+            self.MAX_SLEW_RATE_DEG_S = cfg["max_slew"]
+            self.ema_x.alpha = cfg["ema_alpha"]
+            self.ema_y.alpha = cfg["ema_alpha"]
+            self.current_preset = preset_name
+
+    def set_inversion(self, invert_pan: Optional[bool] = None, invert_tilt: Optional[bool] = None) -> None:
+        """Sets Pan and Tilt axis motion inversion."""
+        if invert_pan is not None:
+            self.invert_pan = bool(invert_pan)
+        if invert_tilt is not None:
+            self.invert_tilt = bool(invert_tilt)
+
     def reset(self, pan: float = PAN_CENTER, tilt: float = TILT_CENTER) -> None:
         """Resets controller state and re-centers servo coordinates."""
         self.current_pan = max(self.PAN_MIN, min(self.PAN_MAX, pan))
@@ -254,6 +294,46 @@ class DualAxisTrackingController:
         self._last_delta_pan = 0.0
         self._last_delta_tilt = 0.0
         self._was_settled = True
+
+        # Inversion & Dynamic Performance Presets
+        self.invert_pan = False
+        self.invert_tilt = False
+        self.current_preset = "normal"
+
+    PRESETS = {
+        "smooth": {
+            "kp_pan": 0.035, "kd_pan": 0.003, "kp_tilt": 0.025, "kd_tilt": 0.002,
+            "max_slew": 50.0, "ema_alpha": 0.20
+        },
+        "normal": {
+            "kp_pan": 0.055, "kd_pan": 0.006, "kp_tilt": 0.040, "kd_tilt": 0.004,
+            "max_slew": 80.0, "ema_alpha": 0.35
+        },
+        "sports": {
+            "kp_pan": 0.085, "kd_pan": 0.010, "kp_tilt": 0.065, "kd_tilt": 0.008,
+            "max_slew": 130.0, "ema_alpha": 0.60
+        },
+    }
+
+    def set_preset(self, preset_name: str) -> None:
+        """Applies dynamic PID & smoothing performance preset ('smooth', 'normal', 'sports')."""
+        if preset_name in self.PRESETS:
+            cfg = self.PRESETS[preset_name]
+            self.pid_pan.kp = cfg["kp_pan"]
+            self.pid_pan.kd = cfg["kd_pan"]
+            self.pid_tilt.kp = cfg["kp_tilt"]
+            self.pid_tilt.kd = cfg["kd_tilt"]
+            self.MAX_SLEW_RATE_DEG_S = cfg["max_slew"]
+            self.ema_x.alpha = cfg["ema_alpha"]
+            self.ema_y.alpha = cfg["ema_alpha"]
+            self.current_preset = preset_name
+
+    def set_inversion(self, invert_pan: Optional[bool] = None, invert_tilt: Optional[bool] = None) -> None:
+        """Sets Pan and Tilt axis motion inversion."""
+        if invert_pan is not None:
+            self.invert_pan = bool(invert_pan)
+        if invert_tilt is not None:
+            self.invert_tilt = bool(invert_tilt)
 
     def center(self) -> TrackingControlOutput:
         """Explicitly commands return to neutral calibrated center (90°, 90°)."""
@@ -418,6 +498,12 @@ class DualAxisTrackingController:
         # 4. PID calculation
         delta_pan = self.pid_pan.update(filt_err_x, dt, is_settled=in_db_x)
         delta_tilt = self.pid_tilt.update(filt_err_y, dt, is_settled=in_db_y)
+
+        # Axis Inversion Toggles
+        if self.invert_pan:
+            delta_pan = -delta_pan
+        if self.invert_tilt:
+            delta_tilt = -delta_tilt
 
         # 5. Slew rate limiting: max 80 deg/s
         max_slew_deg = self.MAX_SLEW_RATE_DEG_S * dt

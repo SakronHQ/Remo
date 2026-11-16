@@ -404,6 +404,24 @@ async def websocket_client_endpoint(websocket: WebSocket):
                 clk_p = ClickToTrackPayload.model_validate(payload)
                 pipeline.click_to_track(clk_p.click_x, clk_p.click_y)
 
+            elif msg_type == "cmd.tracking.config":
+                if "invert_pan" in payload:
+                    pipeline.controller.invert_pan = bool(payload["invert_pan"])
+                if "invert_tilt" in payload:
+                    pipeline.controller.invert_tilt = bool(payload["invert_tilt"])
+                if "preset" in payload:
+                    pipeline.controller.set_preset(str(payload["preset"]))
+                ack = hub.create_envelope(
+                    msg_type="status.tracking.config",
+                    payload={
+                        "invert_pan": pipeline.controller.invert_pan,
+                        "invert_tilt": pipeline.controller.invert_tilt,
+                        "preset": getattr(pipeline.controller, "current_preset", "normal"),
+                    },
+                    corr_id=corr_id,
+                )
+                await hub.send_to_client(websocket, ack)
+
             elif msg_type == "cmd.buzzer":
                 buz_p = BuzzerControlPayload.model_validate(payload)
                 cmd_out = hub.create_envelope(

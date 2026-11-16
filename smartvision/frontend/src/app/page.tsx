@@ -28,6 +28,7 @@ export default function SmartVisionDashboard() {
     sendServoPatrol,
     sendEStop,
     sendTrackMode,
+    sendTrackingConfig,
     sendTargetSelect,
     sendSelectTrackId,
     sendClickToTrack,
@@ -156,6 +157,7 @@ export default function SmartVisionDashboard() {
             onSelectTrackId={handleSelectTrackId}
             onStopTracking={handleStopTracking}
             onPatrolToggle={handlePatrolToggle}
+            onUpdateTrackingConfig={sendTrackingConfig}
           />
 
           {/* Manual Pan/Tilt Gimbal Controls */}
