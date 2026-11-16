@@ -82,7 +82,7 @@ class MockPersonDetector(BasePersonDetector):
             return self._generate_multi_person(frame.shape, t, thresh)
 
         # 4. Procedural single bouncing person
-        if self._mode in ("single_bounce", "synthetic_sync"):
+        if self._mode == "single_bounce":
             return self._generate_single_bounce(frame.shape, t, thresh)
 
         return []

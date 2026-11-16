@@ -216,6 +216,11 @@ class TestPersonDetectors(unittest.TestCase):
         self.assertIsInstance(detector, MockPersonDetector)
         self.assertIn("multi_person", detector.name)
 
+    def test_detector_factory_explicit_face(self):
+        detector = create_detector(mode="face")
+        self.assertTrue(detector.is_ready)
+        self.assertIn("YuNetFaceDetector", detector.name)
+
     def test_detector_factory_invalid_mode(self):
         with self.assertRaises(ValueError):
             create_detector(mode="unsupported_quantum_mode")

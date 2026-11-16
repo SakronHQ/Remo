@@ -114,22 +114,22 @@ export function VideoViewport({
       const rw = (x2 - x1) * scaleX;
       const rh = (y2 - y1) * scaleY;
 
-      // Unlocked person box
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.75)";
+      // Unlocked detected face/person box
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.85)";
       ctx.lineWidth = 1.5;
       ctx.strokeRect(rx1, ry1, rw, rh);
 
       // Label badge
-      const label = `ID:${det.track_id} ${(det.confidence * 100).toFixed(0)}%`;
+      const label = `FACE #${det.track_id} ${(det.confidence * 100).toFixed(0)}%`;
       ctx.font = "10px ui-monospace, monospace";
       ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-      ctx.fillRect(rx1, Math.max(0, ry1 - 18), 70, 16);
+      ctx.fillRect(rx1, Math.max(0, ry1 - 18), 85, 16);
 
-      ctx.fillStyle = "#cbd5e1";
+      ctx.fillStyle = "#38bdf8";
       ctx.fillText(label, rx1 + 4, Math.max(12, ry1 - 6));
     });
 
-    // 4. Render Active Locked Target Reticle
+    // 4. Render Active Locked Target Reticle (Red Reticle on Locked Face)
     if (activeTarget) {
       const [x1, y1, x2, y2] = activeTarget.bbox;
       const rx1 = x1 * scaleX;
@@ -137,11 +137,8 @@ export function VideoViewport({
       const rw = (x2 - x1) * scaleX;
       const rh = (y2 - y1) * scaleY;
 
-      const targetColor = isEstopActive
-        ? "rgba(239, 68, 68, 0.9)"
-        : activeTarget.in_deadband
-        ? "rgba(16, 185, 129, 0.95)"
-        : "rgba(0, 229, 255, 0.95)";
+      // User requirement: Locked target turns RED
+      const targetColor = "#ef4444"; // Vivid Alert Crimson Red
 
       // Target bounding box
       ctx.strokeStyle = targetColor;

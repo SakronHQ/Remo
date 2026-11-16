@@ -24,9 +24,9 @@ class HUDOverlay:
     """
 
     # Tactical color palette (BGR)
-    COLOR_PRIMARY_TARGET = (0, 255, 255)   # Bright Yellow/Gold for locked target
-    COLOR_LOCKED_CORNER = (0, 240, 255)    # Neon Cyan/Yellow accent
-    COLOR_TRACKED_ID = (0, 220, 0)         # Soft Green for untracked candidates
+    COLOR_PRIMARY_TARGET = (0, 0, 255)     # Vivid Red for locked target
+    COLOR_LOCKED_CORNER = (0, 0, 255)      # Red corner accents
+    COLOR_TRACKED_ID = (255, 200, 0)       # Cyan/Blue for untracked candidates
     COLOR_DEADBAND_INNER = (0, 255, 0)     # Green inner deadband (settled)
     COLOR_DEADBAND_OUTER = (0, 165, 255)   # Amber outer deadband (breakout)
     COLOR_RETICLE_CENTER = (80, 80, 80)    # Gray center crosshair

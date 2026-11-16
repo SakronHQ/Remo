@@ -374,7 +374,7 @@ def main():
     parser.add_argument("--no-frontend", action="store_true", help="Launch backend gateway only without Next.js UI")
     parser.add_argument("--mock-esp32", action="store_true", help="Launch virtual ESP32 hardware client")
     parser.add_argument("--synthetic", action="store_true", help="Force synthetic test pattern video stream")
-    parser.add_argument("--detector", "--detector-mode", dest="detector", type=str, default="auto", choices=["auto", "mock", "yolo"], help="Person detector mode")
+    parser.add_argument("--detector", "--detector-mode", dest="detector", type=str, default="auto", choices=["auto", "face", "mock", "yolo"], help="Person/Face detector mode (default: auto)")
     parser.add_argument("--camera-index", type=int, default=None, help="Camera device index (default: 0 for physical webcam, 1 for OBS Virtual Camera)")
     parser.add_argument("--debug", action="store_true", help="Enable verbose debug logging")
     parser.add_argument("--check-only", action="store_true", help="Execute preflight checks and exit")
