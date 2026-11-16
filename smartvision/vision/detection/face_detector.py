@@ -113,6 +113,7 @@ class FaceDetector(BasePersonDetector):
                         confidence=round(score, 4),
                         class_id=0,
                         class_name="face",
+                        raw_face=face,
                     )
                 )
 

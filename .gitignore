@@ -28,3 +28,9 @@ smartvision/captures/
 .DS_Store
 Thumbs.db
 *.bak
+
+# Runtime databases
+*.db
+*.sqlite
+*.sqlite3
+smartvision/data/

@@ -66,6 +66,7 @@ class TrackingPipeline:
         self._seq = 0
         self._last_process_time = time.time()
         self._fps_ema = 30.0
+        self._last_frame: Optional[np.ndarray] = None
 
     @property
     def frame_id(self) -> int:
@@ -79,30 +80,34 @@ class TrackingPipeline:
         self._frame_id = 0
         self._seq = 0
         self._last_process_time = time.time()
+        self._last_frame = None
 
-    def click_to_track(self, click_x: float, click_y: float) -> Optional[int]:
+    def click_to_track(self, click_x: float, click_y: float, frame: Optional[np.ndarray] = None) -> Optional[int]:
         """Interactively locks onto target nearest to (click_x, click_y)."""
         active_tracks = [
             t for t in self.tracker.tracked_tracks
             if getattr(t, "is_activated", True) and getattr(t, "state", None) == TrackState.Tracked
         ]
-        return self.selector.click_to_track(click_x, click_y, active_tracks)
+        f = frame if frame is not None else self._last_frame
+        return self.selector.click_to_track(click_x, click_y, active_tracks, frame=f)
 
-    def select_track_id(self, track_id: int) -> bool:
+    def select_track_id(self, track_id: int, frame: Optional[np.ndarray] = None) -> bool:
         """Directly locks onto a specific track ID."""
         active_tracks = [
             t for t in self.tracker.tracked_tracks
             if getattr(t, "is_activated", True) and getattr(t, "state", None) == TrackState.Tracked
         ]
-        return self.selector.select_track_id(track_id, active_tracks)
+        f = frame if frame is not None else self._last_frame
+        return self.selector.select_track_id(track_id, active_tracks, frame=f)
 
-    def auto_track_first(self, strategy: str = "largest") -> Optional[int]:
+    def auto_track_first(self, strategy: str = "largest", frame: Optional[np.ndarray] = None) -> Optional[int]:
         """Engages automatic tracking of the primary detected person."""
         active_tracks = [
             t for t in self.tracker.tracked_tracks
             if getattr(t, "is_activated", True) and getattr(t, "state", None) == TrackState.Tracked
         ]
-        return self.selector.auto_track_first(active_tracks, strategy=strategy)
+        f = frame if frame is not None else self._last_frame
+        return self.selector.auto_track_first(active_tracks, strategy=strategy, frame=f)
 
     def set_mode(self, mode: str) -> None:
         """Sets tracking operating mode ('idle', 'auto_track', 'locked_id')."""
@@ -142,6 +147,7 @@ class TrackingPipeline:
         self._fps_ema = 0.10 * inst_fps + 0.90 * self._fps_ema
 
         # 1. Person Detection
+        self._last_frame = frame
         t_det_start = time.perf_counter()
         detections = self.detector.detect(frame)
         inference_ms = (time.perf_counter() - t_det_start) * 1000.0
@@ -150,7 +156,7 @@ class TrackingPipeline:
         tracks = self.tracker.update(detections)
 
         # 3. Target Selection & Lost Target State Machine
-        target_res = self.selector.update(tracks, timestamp_ms=now_ms)
+        target_res = self.selector.update(tracks, timestamp_ms=now_ms, frame=frame)
 
         # 4. Closed-Loop Dual-Axis PID Control
         is_coasting = (target_res.state == TargetState.COASTING)

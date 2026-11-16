@@ -4,12 +4,16 @@ Manages interactive click-to-track, ID-based locking, auto-track target prioriti
 and safe timeout reacquisition without silent target switching.
 """
 
+import logging
 from enum import Enum
 import math
 import time
 from typing import Any, Dict, List, Optional, Tuple
+import numpy as np
 
 from .bytetrack import STrack, TrackState
+
+logger = logging.getLogger("SmartVision.TargetSelector")
 
 
 class TargetState(str, Enum):
@@ -68,11 +72,14 @@ class TargetSelector:
         frame_width: int = 640,
         frame_height: int = 480,
         reacquisition_timeout_ms: float = 3000.0,
+        face_reid: Optional[Any] = None,
+        enable_reid: bool = True,
     ):
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.frame_center = (frame_width / 2.0, frame_height / 2.0)
         self.reacquisition_timeout_ms = reacquisition_timeout_ms
+        self.enable_reid = enable_reid
 
         self._locked_track_id: Optional[int] = None
         self._operating_mode = "idle"  # "idle", "auto_track", "locked_id"
@@ -82,6 +89,15 @@ class TargetSelector:
         self._last_seen_time_ms: float = 0.0
         self._last_known_centroid: Optional[Tuple[float, float]] = None
         self._coasting_frames: int = 0
+
+        self.face_reid = face_reid
+        if self.face_reid is None and self.enable_reid:
+            try:
+                from .face_reid import FaceReID
+                self.face_reid = FaceReID()
+            except Exception as e:
+                logger.debug("FaceReID not initialized: %s", e)
+                self.face_reid = None
 
     @property
     def mode(self) -> str:
@@ -119,6 +135,7 @@ class TargetSelector:
         click_y: float,
         tracks: List[STrack],
         max_click_distance: float = 120.0,
+        frame: Optional[np.ndarray] = None,
     ) -> Optional[int]:
         """
         Selects target based on mouse click coordinates.
@@ -140,7 +157,7 @@ class TargetSelector:
                 containing_tracks,
                 key=lambda t: math.hypot(t.centroid[0] - click_x, t.centroid[1] - click_y),
             )
-            self._lock_to_track(best)
+            self._lock_to_track(best, frame=frame)
             return best.track_id
 
         # 2. Nearest centroid search within radius
@@ -153,12 +170,17 @@ class TargetSelector:
         if candidates:
             candidates.sort(key=lambda x: x[0])
             best_track = candidates[0][1]
-            self._lock_to_track(best_track)
+            self._lock_to_track(best_track, frame=frame)
             return best_track.track_id
 
         return None
 
-    def select_track_id(self, track_id: int, tracks: Optional[List[STrack]] = None) -> bool:
+    def select_track_id(
+        self,
+        track_id: int,
+        tracks: Optional[List[STrack]] = None,
+        frame: Optional[np.ndarray] = None,
+    ) -> bool:
         """Locks onto a specific track ID directly."""
         self._locked_track_id = track_id
         self._operating_mode = "locked_id"
@@ -172,11 +194,15 @@ class TargetSelector:
             for t in tracks:
                 if t.track_id == track_id:
                     self._last_known_centroid = t.centroid
+                    self._lock_to_track(t, frame=frame)
                     return True
         return True
 
     def auto_track_first(
-        self, tracks: Optional[List[STrack]] = None, strategy: str = "largest"
+        self,
+        tracks: Optional[List[STrack]] = None,
+        strategy: str = "largest",
+        frame: Optional[np.ndarray] = None,
     ) -> Optional[int]:
         """
         Automatically selects and locks the primary subject in frame.
@@ -201,7 +227,7 @@ class TargetSelector:
         else:
             best = active_tracks[0]
 
-        self._lock_to_track(best)
+        self._lock_to_track(best, frame=frame)
         return best.track_id
 
     def stop_tracking(self) -> None:
@@ -212,32 +238,70 @@ class TargetSelector:
         self._last_known_centroid = None
         self._coasting_frames = 0
 
-    def _lock_to_track(self, track: STrack) -> None:
+    def clear_target_memory(self) -> None:
+        """Clears persistent facial signature from DB."""
+        if self.face_reid is not None:
+            self.face_reid.memory.clear()
+            logger.info("Persistent active target face signature cleared.")
+
+    def _lock_to_track(
+        self,
+        track: STrack,
+        frame: Optional[np.ndarray] = None,
+        timestamp_ms: Optional[float] = None,
+    ) -> None:
         """Internal helper to lock onto a confirmed track."""
         self._locked_track_id = track.track_id
         if self._operating_mode != "auto_track":
             self._operating_mode = "locked_id"
         self._state = TargetState.TRACKING
         self._last_known_centroid = track.centroid
-        self._last_seen_time_ms = time.time() * 1000.0
+        self._last_seen_time_ms = timestamp_ms if timestamp_ms is not None else (time.time() * 1000.0)
         self._coasting_frames = 0
+
+        # Persist facial signature to SQLite memory
+        if self.face_reid is not None and frame is not None:
+            raw_f = getattr(getattr(track, "detection", None), "raw_face", None)
+            if raw_f is not None:
+                feat = self.face_reid.extract_embedding(frame, raw_f)
+                if feat is not None:
+                    self.face_reid.memory.save_target(feat)
+                    logger.info("Persisted active target facial signature for Track #%d to DB", track.track_id)
 
     def update(
         self,
         tracks: List[STrack],
         timestamp_ms: Optional[float] = None,
+        frame: Optional[np.ndarray] = None,
     ) -> TargetSelectionResult:
         """
         Updates target selection state for current frame.
-        Handles coasting, holding, and timeout without silently jumping to another person.
+        Handles persistent face Re-ID, coasting, holding, and timeout without silently jumping to another person.
         """
         now_ms = timestamp_ms if timestamp_ms is not None else time.time() * 1000.0
 
-        # Case 1: No target currently requested or locked
+        # Case 1: No target currently locked in track ID
+        if self._locked_track_id is None:
+            # Face Re-ID Check: If a target was persisted in DB, re-lock if they re-enter camera view
+            if self.face_reid is not None and self.face_reid.memory.has_target() and tracks and frame is not None:
+                saved_feat = self.face_reid.memory.get_target()
+                for t in tracks:
+                    raw_f = getattr(getattr(t, "detection", None), "raw_face", None)
+                    if raw_f is not None:
+                        feat = self.face_reid.extract_embedding(frame, raw_f)
+                        if feat is not None and self.face_reid.is_match(saved_feat, feat):
+                            logger.info(
+                                "Target re-acquired via persistent facial DB signature (sim=%.2f) -> Track #%d",
+                                self.face_reid.match(saved_feat, feat),
+                                t.track_id,
+                            )
+                            self._lock_to_track(t, frame=frame, timestamp_ms=now_ms)
+                            break
+
         if self._locked_track_id is None:
             if self._operating_mode == "auto_track" and tracks:
                 # In auto_track mode, acquire first target if available
-                self.auto_track_first(tracks, strategy=self._auto_track_strategy)
+                self.auto_track_first(tracks, strategy=self._auto_track_strategy, frame=frame)
             else:
                 self._state = TargetState.IDLE
                 return TargetSelectionResult(
@@ -257,12 +321,37 @@ class TargetSelector:
                 target_track = t
                 break
 
+        # Re-ID fallback: If track ID was lost or changed by ByteTrack, check current faces against saved DB signature
+        if target_track is None and self.face_reid is not None and self.face_reid.memory.has_target() and tracks and frame is not None:
+            saved_feat = self.face_reid.memory.get_target()
+            for t in tracks:
+                raw_f = getattr(getattr(t, "detection", None), "raw_face", None)
+                if raw_f is not None:
+                    feat = self.face_reid.extract_embedding(frame, raw_f)
+                    if feat is not None and self.face_reid.is_match(saved_feat, feat):
+                        logger.info(
+                            "Target re-associated via persistent facial signature match (sim=%.2f) -> Track #%d",
+                            self.face_reid.match(saved_feat, feat),
+                            t.track_id,
+                        )
+                        self._lock_to_track(t, frame=frame, timestamp_ms=now_ms)
+                        target_track = t
+                        break
+
         if target_track is not None:
             # Target is visible and updated in this frame
             self._state = TargetState.TRACKING
             self._last_seen_time_ms = now_ms
             self._last_known_centroid = target_track.centroid
             self._coasting_frames = 0
+
+            # If target has not yet been saved to DB (e.g. auto_track initial frames), persist now
+            if self.face_reid is not None and not self.face_reid.memory.has_target() and frame is not None:
+                raw_f = getattr(getattr(target_track, "detection", None), "raw_face", None)
+                if raw_f is not None:
+                    feat = self.face_reid.extract_embedding(frame, raw_f)
+                    if feat is not None:
+                        self.face_reid.memory.save_target(feat)
 
             return TargetSelectionResult(
                 state=TargetState.TRACKING,
@@ -308,7 +397,7 @@ class TargetSelector:
 
         else:
             # Phase 3: Timeout Exceeded!
-            # Reset lock safely. CRITICAL: Do NOT jump to another person silently during tracking/coasting/holding!
+            # Reset active track lock safely, but keep facial signature in DB for seamless return!
             self._state = TargetState.LOST
             lost_id = self._locked_track_id
             self._locked_track_id = None

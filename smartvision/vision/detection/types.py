@@ -4,7 +4,7 @@ Represents detected person bounding boxes, confidence scores, and centroid geome
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,7 @@ class PersonDetection:
     confidence: float
     class_id: int = 0
     class_name: str = "person"
+    raw_face: Optional[Any] = None
 
     def __post_init__(self):
         # Validate geometry ordering
