@@ -85,6 +85,9 @@ async def app_lifespan(app: FastAPI):
     if not hasattr(app.state, "state_manager") or app.state.state_manager is None:
         app.state.state_manager = SystemStateManager()
 
+    if hasattr(app.state, "camera_service") and app.state.camera_service:
+        app.state.state_manager.update_camera_status(app.state.camera_service.get_stats())
+
     if not hasattr(app.state, "connection_hub") or app.state.connection_hub is None:
         app.state.connection_hub = ConnectionHub()
 

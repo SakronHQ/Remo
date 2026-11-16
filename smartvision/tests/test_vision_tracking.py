@@ -199,10 +199,17 @@ class TestPersonDetectors(unittest.TestCase):
 
     def test_detector_factory_auto_fallback(self):
         """Factory in 'auto' mode must gracefully return MockPersonDetector if YOLO fails."""
-        detector = create_detector(mode="auto")
+        detector = create_detector(mode="auto", model_path="non_existent_weights_fallback.pt")
         self.assertIsNotNone(detector)
         self.assertTrue(detector.is_ready)
         self.assertIn("MockPersonDetector", detector.name)
+
+    def test_detector_factory_auto_yolo(self):
+        """Factory in 'auto' mode returns YOLOv8PersonDetector when YOLO dependencies are present."""
+        detector = create_detector(mode="auto")
+        self.assertIsNotNone(detector)
+        self.assertTrue(detector.is_ready)
+        self.assertIn("YOLOv8PersonDetector", detector.name)
 
     def test_detector_factory_explicit_mock(self):
         detector = create_detector(mode="mock", mock_mode="multi_person")

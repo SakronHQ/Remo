@@ -17,6 +17,11 @@ __pycache__/
 captures/
 smartvision/captures/
 
+# Model weights
+*.pt
+*.onnx
+*.engine
+
 # IDE & OS
 .vscode/
 .idea/
